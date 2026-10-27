@@ -14,11 +14,12 @@ Laying cells on a pointed topshell by hand is slow. The useful question is not �
 
 - Upload a 2D outline in common vector formats. Detect closed regions, then let the user **choose which areas to populate**. Regions can be marked populate, keep-out, or unused. The user can also draw extra include/exclude polygons so only part of a single shell is filled (left side, rear, skip a walkway). Auto-pack and live issues only use the selected populate area.
 - Accept these parameters:
-  - solar cell width and height (mm)
+  - solar cell **footprint** width and height (mm) — the physical rectangle used for packing, gaps, and collisions
+  - solar cell **usable / active** width and height (mm) — the PV area that counts toward target surface area. These may be smaller than the footprint (tabs, rounded corners, masked busbars). Defaults equal the footprint.
   - solar cell spacing / gap (mm), applied between cells inside a panel in both directions
   - panel spacing / gap (mm), applied between adjacent panels (and between a panel and another panel only — not inside a panel)
   - max panel size as cells-wide × cells-tall
-  - **target surface area (m²)** — the desired total *active cell* area (cell width × cell height × cell count; gaps do not count)
+  - **target surface area (m²)** — the desired total *usable* cell area (`active_w × active_h × cell count`; footprint and gaps do not count)
 - Generate multiple distinct layouts and display them as overlays on the outline. Auto-generation produces the first working config the user then owns.
 - For each layout, show cell count, panel count, panel size mix, active area, and how far it is from the target (absolute and percent).
 - Rank layouts by closeness to the target, then by fewer panels (simpler module count), then by more axis-aligned (90°) area, then by simpler panel shapes (solid rectangles over carved ones), then by higher coverage.
@@ -85,7 +86,7 @@ Packing strategy is left to the builder as long as it is deterministic, finishes
 
 ### Target surface area
 
-Active area `A = n_cells × cell_w × cell_h` (converted to m²).
+Active area `A = n_cells × active_w × active_h` (converted to m²). Packing still uses the footprint `cell_w × cell_h`.
 
 - Layouts are scored by `|A − target|`.
 - Layouts that meet or exceed the target are marked as meeting it.
@@ -120,7 +121,7 @@ The gallery and canvas share the same drawing: outline, panels, individual cells
 
 - Stack: Python FastAPI + Shapely packing on the server; Vite + React on the client; nginx or the API serving the built UI; Docker Compose with one app service (and a multi-stage image).
 - Geometry libraries: `ezdxf` for DXF, `svgelements`/`svgpathtools` for SVG, pypdf/pymupdf for PDF/AI, `pillow` only for preview rasters. DWG via a converter if one is available in the image; otherwise a clear “convert to DXF” error.
-- Default numbers in the form can be typical solar-car cells (e.g. 125 × 125 mm, 2 mm cell gap, 10 mm panel gap, max 6 × 10, target 6.0 m²) — builder may tune these to the sample file.
+- Default numbers in the form can be typical solar-car cells (e.g. 125 × 125 mm footprint, 125 × 125 mm usable, 2 mm cell gap, 10 mm panel gap, max 6 × 10, target 6.0 m²) — builder may tune these to the sample file.
 - Visual style: dark technical UI, outline + cell grid, no marketing fluff.
 - Live validation and dragging run in the browser against the parsed outline; the server is for import + auto-pack only. Undo/redo for edits is required (builder picks the stack).
 

@@ -15,6 +15,8 @@ class RegionKind(str, Enum):
 class LayoutParams:
     cell_w_mm: float
     cell_h_mm: float
+    active_w_mm: float
+    active_h_mm: float
     cell_gap_mm: float
     panel_gap_mm: float
     max_wide: int
@@ -26,6 +28,8 @@ class LayoutParams:
 DEFAULT_PARAMS = LayoutParams(
     cell_w_mm=125,
     cell_h_mm=125,
+    active_w_mm=125,
+    active_h_mm=125,
     cell_gap_mm=2,
     panel_gap_mm=10,
     max_wide=6,
@@ -33,6 +37,10 @@ DEFAULT_PARAMS = LayoutParams(
     target_area_m2=6.0,
     unit_scale=1.0,
 )
+
+
+def usable_cell_area_m2(params: LayoutParams) -> float:
+    return params.active_w_mm * params.active_h_mm / 1e6
 
 
 @dataclass

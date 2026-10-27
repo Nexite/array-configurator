@@ -13,8 +13,8 @@
 ## Global Constraints
 
 - Default sample is `samples/TOPSHELL.DXF` (mm). Canopy is already removed; do not flatten again.
-- Default form values: cell 125×125 mm, cell gap 2 mm, panel gap 10 mm, max 6×10 cells, target 6.0 m², unit scale 1.0.
-- Active area `A = n_cells × cell_w_mm × cell_h_mm / 1e6` m². Gaps do not count.
+- Default form values: cell footprint 125×125 mm, usable/active 125×125 mm, cell gap 2 mm, panel gap 10 mm, max 6×10 cells, target 6.0 m², unit scale 1.0.
+- Packing, pitch, and collisions use footprint `cell_w_mm × cell_h_mm`. Active area `A = n_cells × active_w_mm × active_h_mm / 1e6` m². Gaps and leftover footprint do not count.
 - Allowed panel angles: `0, 15, …, 165` degrees, plus long-edge angles from the populate outline at pack time. 90° pass uses only `0` and `90`.
 - Snap while dragging: 1 mm. Close-path snap on import: 2 mm. Containment epsilon: `1e-4` mm (float only; cells still must be fully inside).
 - Upload cap 25 MiB. Pack timeout 20 s. Return at most 12 distinct layouts.
@@ -65,7 +65,7 @@
 **Interfaces:**
 - Consumes: nothing
 - Produces:
-  - `LayoutParams(cell_w_mm, cell_h_mm, cell_gap_mm, panel_gap_mm, max_wide, max_tall, target_area_m2, unit_scale=1.0)`
+  - `LayoutParams(cell_w_mm, cell_h_mm, active_w_mm, active_h_mm, cell_gap_mm, panel_gap_mm, max_wide, max_tall, target_area_m2, unit_scale=1.0)`
   - `DEFAULT_PARAMS` with the Global Constraints defaults
   - `RegionKind`: `"populate" | "keep_out" | "unused"`
   - `Region(id: str, points: list[tuple[float,float]], kind: RegionKind, source: Literal["detected","drawn"])`
@@ -200,7 +200,7 @@ def test_cycle_kind_order():
   - `validate_layout(panels, params, packable) -> list[Issue]`
     - kinds: `outside`, `overlap`, `panel_spacing`, `cell_grid`, `area_target`, `panel_split`
     - `panel_spacing`: shapely `distance` between `panel_footprint`s < `panel_gap_mm` (strict). Message: `Panels {a} and {b} are {measured:.1f} mm apart; need {required:.1f} mm`
-    - `area_target` only when `|A - target| > cell_w_mm * cell_h_mm / 1e6`
+    - `area_target` only when `|A - target| > active_w_mm * active_h_mm / 1e6`
   - `score_layout(panels, params) -> LayoutScore` with `cell_count`, `panel_count`, `active_area_m2`, `delta_m2` (`A - target`), `meets_target` (`A >= target`), `axis_aligned_area_m2`, `rectangular_panel_count`
   - `rank_key(score) -> tuple` — `(abs(delta_m2), panel_count, -axis_aligned_area_m2, -rectangular_panel_count, -active_area_m2)`
 
@@ -215,7 +215,7 @@ def test_diagonal_panels_true_gap_not_aabb():
 def test_area_issue_when_more_than_one_cell_off():
     # 1 cell, target 6.0 → issue; 1 cell, target 0.015625 → no area issue
 def test_score_two_cells():
-    # A == 2 * 125 * 125 / 1e6 == 0.03125
+    # A == 2 * active_w * active_h / 1e6 == 0.03125 when active == 125×125
 def test_rank_prefers_closer_target():
 ```
 
@@ -387,7 +387,7 @@ def test_export_dxf_has_cells_layer():
 it("does not swap gallery while dirty until confirm", ...)
 it("split on carve of disconnected cells", ...)
 it("resize bound does not fill a carved hole", ...)
-it("status area uses n_cells * cell_w * cell_h / 1e6", ...)
+it("status area uses n_cells * active_w * active_h / 1e6", ...)
 ```
 
 - [ ] **Step 2: Run** `npx vitest run src/state/store.test.ts`  

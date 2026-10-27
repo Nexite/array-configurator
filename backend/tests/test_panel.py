@@ -7,7 +7,7 @@ from app.geometry.panel import (
     is_rectangular,
     split_disconnected,
 )
-from app.models import DEFAULT_PARAMS, LayoutParams, Panel
+from app.models import DEFAULT_PARAMS, LayoutParams, Panel, usable_cell_area_m2
 
 
 def _panel(**kwargs) -> Panel:
@@ -27,6 +27,8 @@ def test_default_params():
     p = DEFAULT_PARAMS
     assert p.cell_w_mm == 125
     assert p.cell_h_mm == 125
+    assert p.active_w_mm == 125
+    assert p.active_h_mm == 125
     assert p.cell_gap_mm == 2
     assert p.panel_gap_mm == 10
     assert p.max_wide == 6
@@ -103,6 +105,8 @@ def test_zero_gap_pitch_equals_cell():
     params = LayoutParams(
         cell_w_mm=100,
         cell_h_mm=50,
+        active_w_mm=90,
+        active_h_mm=45,
         cell_gap_mm=0,
         panel_gap_mm=0,
         max_wide=2,
@@ -110,5 +114,6 @@ def test_zero_gap_pitch_equals_cell():
         target_area_m2=1.0,
     )
     assert cell_pitch(params) == (100.0, 50.0)
+    assert abs(usable_cell_area_m2(params) - (90 * 45 / 1e6)) < 1e-12
     poly = cell_polygon(_panel(origin=(10.0, 20.0)), 0, 0, params)
     assert poly.equals(box(10.0, 20.0, 110.0, 70.0))
