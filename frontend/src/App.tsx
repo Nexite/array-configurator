@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { exportFile, importFile, loadSample, pack, validate } from "./api";
 import {
   addDrawnRegion,
@@ -17,6 +17,7 @@ import {
   type AppState,
 } from "./state/store";
 import { type Issue, type LayoutParams, type Panel } from "./types";
+import { fitView, panView, screenToWorld, zoomView, type Size, type View } from "./view";
 
 function num(v: string, fallback: number) {
   const n = Number(v);
@@ -45,6 +46,12 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<[number, number][]>([]);
+  const [viewport, setViewport] = useState<Size>({ w: 0, h: 0 });
+  const [view, setView] = useState<View | null>(null);
+  const [panning, setPanning] = useState(false);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const userView = useRef(false);
+  const panRef = useRef<{ x: number; y: number; moved: boolean; regionId?: string } | null>(null);
 
   const params = s.params;
   const bounds = useMemo(() => {
@@ -56,6 +63,66 @@ export function App() {
     const miny = Math.min(...ys);
     return { minx, miny, w: Math.max(...xs) - minx || 1, h: Math.max(...ys) - miny || 1 };
   }, [s.regions]);
+
+  const cam = view ?? { x: bounds.minx, y: bounds.miny, w: bounds.w, h: bounds.h };
+  const stroke = Math.max(cam.w, cam.h);
+
+  function applyFit(vp = viewport) {
+    if (vp.w < 8 || vp.h < 8) return;
+    userView.current = false;
+    setView(fitView(bounds, vp));
+  }
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const box = entries[0]?.contentRect;
+      if (!box) return;
+      setViewport({ w: box.width, h: box.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const prevVp = useRef(viewport);
+  const boundsKey = `${bounds.minx},${bounds.miny},${bounds.w},${bounds.h}`;
+  useEffect(() => {
+    userView.current = false;
+  }, [boundsKey]);
+
+  useEffect(() => {
+    if (viewport.w < 8 || viewport.h < 8) return;
+    const prev = prevVp.current;
+    prevVp.current = viewport;
+    if (!userView.current) {
+      setView(fitView(bounds, viewport));
+      return;
+    }
+    setView((cur) => {
+      if (!cur || !prev.w) return fitView(bounds, viewport);
+      const cx = cur.x + cur.w / 2;
+      const cy = cur.y + cur.h / 2;
+      const spp = cur.w / prev.w;
+      const w = spp * viewport.w;
+      const h = spp * viewport.h;
+      return { x: cx - w / 2, y: cy - h / 2, w, h };
+    });
+  }, [bounds, viewport]);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const onWheel = (ev: WheelEvent) => ev.preventDefault();
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function worldFromEvent(ev: { clientX: number; clientY: number }, svg = svgRef.current) {
+    if (!svg || !viewport.w) return { x: 0, y: 0 };
+    const r = svg.getBoundingClientRect();
+    return screenToWorld(cam, viewport, ev.clientX - r.left, ev.clientY - r.top);
+  }
 
   async function refreshIssues(state: AppState) {
     if (!state.active) return setIssues([]);
@@ -170,7 +237,10 @@ export function App() {
         <button className="primary" disabled={busy || !s.regions.length} onClick={onGenerate}>
           {busy ? "Packing…" : "Generate"}
         </button>
-        <p className="hint">Click a region to cycle populate / keep-out / unused. {drawMode ? "Click the canvas to draw an exclude polygon." : ""}</p>
+        <p className="hint">
+          Scroll to zoom, drag empty space to pan, double-click to fit. Click a region to cycle populate / keep-out / unused.
+          {drawMode ? " Click the canvas to draw an exclude polygon." : ""}
+        </p>
         <button onClick={() => setDrawMode((d) => !d)}>{drawMode ? "Finish drawing" : "Draw exclude"}</button>
         {drawMode && draft.length > 2 && (
           <button
@@ -224,34 +294,75 @@ export function App() {
               Confirm replace
             </button>
           )}
+          <button onClick={() => applyFit()}>Fit</button>
         </div>
         <svg
-          className="board"
-          viewBox={`${bounds.minx} ${bounds.miny} ${bounds.w} ${bounds.h}`}
+          ref={svgRef}
+          className={`board${panning ? " panning" : ""}`}
+          viewBox={`${cam.x} ${cam.y} ${cam.w} ${cam.h}`}
+          preserveAspectRatio="none"
+          onWheel={(ev) => {
+            ev.preventDefault();
+            if (!viewport.w) return;
+            const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
+            const world = worldFromEvent(ev);
+            userView.current = true;
+            setView((cur) => {
+              const base = cur ?? cam;
+              const next = zoomView(base, factor, world.x, world.y);
+              const minW = bounds.w / 50;
+              const maxW = Math.max(bounds.w, 1) * 12;
+              if (next.w < minW || next.w > maxW) return base;
+              return next;
+            });
+          }}
+          onPointerDown={(ev) => {
+            if (drawMode) return;
+            const t = ev.target as Element;
+            if (t.closest(".cell")) return;
+            const regionId = t instanceof SVGPolygonElement && t.dataset.regionId ? t.dataset.regionId : undefined;
+            panRef.current = { x: ev.clientX, y: ev.clientY, moved: false, regionId };
+            ev.currentTarget.setPointerCapture(ev.pointerId);
+          }}
+          onPointerMove={(ev) => {
+            const pan = panRef.current;
+            if (!pan || !viewport.w) return;
+            const dx = ev.clientX - pan.x;
+            const dy = ev.clientY - pan.y;
+            if (!pan.moved && dx * dx + dy * dy < 16) return;
+            pan.moved = true;
+            setPanning(true);
+            userView.current = true;
+            const wx = (dx * cam.w) / viewport.w;
+            const wy = (dy * cam.h) / viewport.h;
+            pan.x = ev.clientX;
+            pan.y = ev.clientY;
+            setView((cur) => panView(cur ?? cam, wx, wy));
+          }}
+          onPointerUp={() => {
+            const pan = panRef.current;
+            panRef.current = null;
+            setPanning(false);
+            if (pan && !pan.moved && pan.regionId && !drawMode) {
+              setS((prev) => cycleRegion(prev, pan.regionId!));
+            }
+          }}
+          onDoubleClick={() => applyFit()}
           onClick={(ev) => {
             if (!drawMode) return;
-            const svg = ev.currentTarget;
-            const pt = svg.createSVGPoint();
-            pt.x = ev.clientX;
-            pt.y = ev.clientY;
-            const ctm = svg.getScreenCTM();
-            if (!ctm) return;
-            const loc = pt.matrixTransform(ctm.inverse());
+            const loc = worldFromEvent(ev);
             setDraft((d) => [...d, [loc.x, loc.y]]);
           }}
         >
           {s.regions.map((r) => (
             <polygon
               key={r.id}
+              data-region-id={r.id}
               points={r.points.map((p) => p.join(",")).join(" ")}
               fill={r.kind === "populate" ? "#1f6feb" : r.kind === "keep_out" ? "#e05a4f" : "#555"}
               fillOpacity={r.kind === "populate" ? 0.25 : 0.2}
               stroke={r.kind === "populate" ? "#3d8ef0" : "#888"}
-              strokeWidth={Math.max(bounds.w, bounds.h) / 400}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!drawMode) setS((prev) => cycleRegion(prev, r.id));
-              }}
+              strokeWidth={stroke / 400}
             />
           ))}
           {s.active?.panels.map((p) =>
@@ -261,31 +372,34 @@ export function App() {
               return (
                 <polygon
                   key={`${p.id}-${i}-${j}`}
+                  className="cell"
                   points={pts.map((q) => q.join(",")).join(" ")}
                   fill={bad ? "#e05a4f" : "#f0c14b"}
                   fillOpacity={0.75}
                   stroke="#111"
-                  strokeWidth={Math.max(bounds.w, bounds.h) / 800}
-                  onMouseDown={(ev) => {
+                  strokeWidth={stroke / 800}
+                  onPointerDown={(ev) => {
+                    ev.stopPropagation();
                     ev.preventDefault();
                     setS((prev) => ({ ...prev, selectedPanelId: p.id }));
                     const start = { x: ev.clientX, y: ev.clientY, ox: p.origin[0], oy: p.origin[1] };
-                    const move = (e: MouseEvent) => {
-                      const scale = bounds.w / (ev.currentTarget.ownerSVGElement?.clientWidth || 1);
-                      const nx = Math.round(start.ox + (e.clientX - start.x) * scale);
-                      const ny = Math.round(start.oy + (e.clientY - start.y) * scale);
+                    const move = (e: PointerEvent) => {
+                      const scaleX = cam.w / (viewport.w || 1);
+                      const scaleY = cam.h / (viewport.h || 1);
+                      const nx = Math.round(start.ox + (e.clientX - start.x) * scaleX);
+                      const ny = Math.round(start.oy + (e.clientY - start.y) * scaleY);
                       setS((prev) => movePanel(prev, p.id, [nx, ny]));
                     };
                     const up = () => {
-                      window.removeEventListener("mousemove", move);
-                      window.removeEventListener("mouseup", up);
+                      window.removeEventListener("pointermove", move);
+                      window.removeEventListener("pointerup", up);
                       setS((prev) => {
                         refreshIssues(prev);
                         return prev;
                       });
                     };
-                    window.addEventListener("mousemove", move);
-                    window.addEventListener("mouseup", up);
+                    window.addEventListener("pointermove", move);
+                    window.addEventListener("pointerup", up);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();

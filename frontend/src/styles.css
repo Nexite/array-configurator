@@ -25,7 +25,8 @@ button.danger { color: var(--danger); }
 .status { display: flex; gap: 16px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: #161a20; }
 .status .off { color: var(--danger); }
 .status .ok { color: var(--ok); }
-svg.board { flex: 1; width: 100%; background: #0c0e12; }
+svg.board { flex: 1; width: 100%; background: #0c0e12; cursor: grab; touch-action: none; overscroll-behavior: none; }
+svg.board.panning { cursor: grabbing; }
 .issue { padding: 6px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .issue:hover { color: var(--accent); }
 .card { border: 1px solid var(--line); padding: 8px; margin-bottom: 8px; cursor: pointer; }
