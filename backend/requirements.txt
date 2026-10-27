@@ -7,3 +7,4 @@ pymupdf
 pydantic
 pytest
 httpx
+python-multipart

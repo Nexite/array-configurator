@@ -50,6 +50,12 @@ def test_gap_3mm_ignored():
     assert rings == []
 
 
+def test_topshell_spline_outline():
+    rings = import_vector((ROOT / "samples" / "TOPSHELL.DXF").read_bytes(), "TOPSHELL.DXF")
+    assert rings
+    assert max(Polygon(r).area for r in rings) > 1e6
+
+
 def test_png_rejected():
     with pytest.raises(UnsupportedFormatError, match="Raster files are not supported"):
         import_vector(b"x", "x.png")

@@ -76,22 +76,57 @@ def _import_dwg(data: bytes, unit_scale: float) -> list[list[tuple[float, float]
         return _import_dxf(dst.read_bytes(), unit_scale)
 
 
+def _join_paths(paths: list[list[tuple[float, float]]], tol: float) -> list[list[tuple[float, float]]]:
+    unused = [p for p in paths if len(p) >= 2]
+    joined: list[list[tuple[float, float]]] = []
+    while unused:
+        cur = unused.pop()
+        changed = True
+        while changed:
+            changed = False
+            for i, other in enumerate(unused):
+                if _dist(cur[-1], other[0]) <= tol:
+                    cur = cur + other[1:]
+                    unused.pop(i)
+                    changed = True
+                    break
+                if _dist(cur[-1], other[-1]) <= tol:
+                    cur = cur + list(reversed(other[:-1]))
+                    unused.pop(i)
+                    changed = True
+                    break
+                if _dist(cur[0], other[-1]) <= tol:
+                    cur = other + cur[1:]
+                    unused.pop(i)
+                    changed = True
+                    break
+                if _dist(cur[0], other[0]) <= tol:
+                    cur = list(reversed(other)) + cur[1:]
+                    unused.pop(i)
+                    changed = True
+                    break
+        joined.append(cur)
+    return joined
+
+
 def _import_dxf(data: bytes, unit_scale: float) -> list[list[tuple[float, float]]]:
-    text = data.decode("utf-8", errors="replace")
+    text = data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     doc = ezdxf.read(io.StringIO(text))
     msp = doc.modelspace()
+    open_paths: list[list[tuple[float, float]]] = []
     rings: list[list[tuple[float, float]]] = []
     for e in msp:
         kind = e.dxftype()
         pts: list[tuple[float, float]] = []
+        closed = False
         if kind == "LWPOLYLINE":
             pts = [(float(p[0]), float(p[1])) for p in e.get_points("xy")]
-            if e.closed and pts and pts[0] != pts[-1]:
-                pts.append(pts[0])
+            closed = bool(e.closed)
         elif kind == "POLYLINE":
             pts = [(float(v.dxf.location.x), float(v.dxf.location.y)) for v in e.vertices]
-            if e.is_closed and pts and pts[0] != pts[-1]:
-                pts.append(pts[0])
+            closed = bool(e.is_closed)
+        elif kind == "SPLINE":
+            pts = [(float(p.x), float(p.y)) for p in e.flattening(1.0)]
         elif kind == "CIRCLE":
             c = e.dxf.center
             r = float(e.dxf.radius)
@@ -99,9 +134,23 @@ def _import_dxf(data: bytes, unit_scale: float) -> list[list[tuple[float, float]
                 (c.x + r * math.cos(t), c.y + r * math.sin(t))
                 for t in [i * 2 * math.pi / 64 for i in range(65)]
             ]
+            closed = True
         elif kind == "LINE":
+            s, t = e.dxf.start, e.dxf.end
+            pts = [(float(s.x), float(s.y)), (float(t.x), float(t.y))]
+        elif kind == "ARC":
+            pts = [(float(p.x), float(p.y)) for p in e.flattening(1.0)]
+        if not pts:
             continue
-        ring = _close_ring(pts, unit_scale) if pts else None
+        if closed and pts[0] != pts[-1]:
+            pts.append(pts[0])
+        ring = _close_ring(pts, unit_scale)
+        if ring and _valid_area(ring):
+            rings.append(ring)
+        else:
+            open_paths.append([(x * unit_scale, y * unit_scale) for x, y in pts])
+    for path in _join_paths(open_paths, CLOSE_TOL_MM):
+        ring = _close_ring([(x, y) for x, y in path], 1.0)
         if ring and _valid_area(ring):
             rings.append(ring)
     return rings
