@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+shapely
+ezdxf
+svgelements
+pymupdf
+pydantic
+pytest
+httpx
