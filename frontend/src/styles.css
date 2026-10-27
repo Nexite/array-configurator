@@ -1,0 +1,33 @@
+:root {
+  color-scheme: dark;
+  --bg: #121418;
+  --panel: #1a1d24;
+  --line: #2a303a;
+  --text: #e8edf5;
+  --muted: #8b95a7;
+  --accent: #3d8ef0;
+  --danger: #e05a4f;
+  --ok: #3ecf8e;
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+.app { display: grid; grid-template-columns: 280px 1fr 260px; height: 100%; }
+aside, .gallery { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; padding: 12px; }
+.gallery { border-right: none; border-left: 1px solid var(--line); }
+h1 { font-size: 16px; margin: 0 0 12px; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 8px; }
+label { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; align-items: center; }
+input, select, button { background: #0e1014; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; margin: 8px 0; }
+button.danger { color: var(--danger); }
+.canvas-wrap { display: flex; flex-direction: column; min-width: 0; }
+.status { display: flex; gap: 16px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: #161a20; }
+.status .off { color: var(--danger); }
+.status .ok { color: var(--ok); }
+svg.board { flex: 1; width: 100%; background: #0c0e12; }
+.issue { padding: 6px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.issue:hover { color: var(--accent); }
+.card { border: 1px solid var(--line); padding: 8px; margin-bottom: 8px; cursor: pointer; }
+.card.active { border-color: var(--accent); }
+.hint { color: var(--muted); font-size: 12px; }

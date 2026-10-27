@@ -7,5 +7,6 @@ backend/app/geometry/__pycache__/
 backend/tests/__pycache__/
 frontend/node_modules/
 frontend/dist/
+backend/app/static/
 .DS_Store
 *.pyc
