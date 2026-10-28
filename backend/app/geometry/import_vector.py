@@ -8,7 +8,8 @@ import tempfile
 from pathlib import Path
 
 import ezdxf
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, MultiLineString, Polygon
+from shapely.ops import polygonize, unary_union
 
 CLOSE_TOL_MM = 2.0
 RASTER_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp"}
@@ -109,6 +110,95 @@ def _join_paths(paths: list[list[tuple[float, float]]], tol: float) -> list[list
     return joined
 
 
+def _weld_endpoints(
+    paths: list[list[tuple[float, float]]], tol: float
+) -> list[list[tuple[float, float]]]:
+    """Move segment endpoints that lie within tol onto one shared point.
+
+    A shell exported as separate splines and lines meets at vertices, often a
+    fraction of a millimetre apart. Welding those ends lets the closed faces
+    be recovered. Edges longer than tol stay intact.
+    """
+    ends: list[tuple[float, float]] = []
+    for pts in paths:
+        ends.append(pts[0])
+        ends.append(pts[-1])
+    parent = list(range(len(ends)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    cell = tol if tol > 0 else 1.0
+    buckets: dict[tuple[int, int], list[int]] = {}
+    for i, pt in enumerate(ends):
+        buckets.setdefault((math.floor(pt[0] / cell), math.floor(pt[1] / cell)), []).append(i)
+    for i, pt in enumerate(ends):
+        kx, ky = math.floor(pt[0] / cell), math.floor(pt[1] / cell)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for j in buckets.get((kx + dx, ky + dy), ()):
+                    if j > i and _dist(pt, ends[j]) <= tol:
+                        union(i, j)
+    groups: dict[int, list[tuple[float, float]]] = {}
+    for i, pt in enumerate(ends):
+        groups.setdefault(find(i), []).append(pt)
+    center = {
+        root: (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+        for root, pts in groups.items()
+    }
+    welded: list[list[tuple[float, float]]] = []
+    for i, pts in enumerate(paths):
+        nxt = list(pts)
+        nxt[0] = center[find(2 * i)]
+        nxt[-1] = center[find(2 * i + 1)]
+        if _dist(nxt[0], nxt[-1]) > 1e-9:
+            welded.append(nxt)
+    return welded
+
+
+def _polygonize_paths(
+    paths: list[list[tuple[float, float]]], tol: float
+) -> list[list[tuple[float, float]]]:
+    """Closed faces formed by a network of curves, including shared edges."""
+    usable = [p for p in paths if len(p) >= 2]
+    if not usable:
+        return []
+    lines: list[LineString] = []
+    for pts in _weld_endpoints(usable, tol):
+        try:
+            line = LineString(pts)
+        except Exception:
+            continue
+        if line.is_empty or line.length <= 1e-9:
+            continue
+        lines.append(line)
+    if not lines:
+        return []
+    try:
+        merged = unary_union(MultiLineString(lines))
+    except Exception:
+        return []
+    rings: list[list[tuple[float, float]]] = []
+    for poly in polygonize(merged):
+        exterior = [(float(x), float(y)) for x, y in poly.exterior.coords]
+        # Sub-square-millimetre faces are noding slivers, not shell regions.
+        if Polygon(exterior).area > 1.0:
+            rings.append(exterior)
+        for hole in poly.interiors:
+            hole_pts = [(float(x), float(y)) for x, y in hole.coords]
+            if Polygon(hole_pts).area > 1.0:
+                rings.append(hole_pts)
+    return rings
+
+
 def _import_dxf(data: bytes, unit_scale: float) -> list[list[tuple[float, float]]]:
     text = data.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
     doc = ezdxf.read(io.StringIO(text))
@@ -149,10 +239,14 @@ def _import_dxf(data: bytes, unit_scale: float) -> list[list[tuple[float, float]
             rings.append(ring)
         else:
             open_paths.append([(x * unit_scale, y * unit_scale) for x, y in pts])
-    for path in _join_paths(open_paths, CLOSE_TOL_MM):
-        ring = _close_ring([(x, y) for x, y in path], 1.0)
-        if ring and _valid_area(ring):
-            rings.append(ring)
+    faces = _polygonize_paths(open_paths, CLOSE_TOL_MM)
+    if faces:
+        rings.extend(faces)
+    else:
+        for path in _join_paths(open_paths, CLOSE_TOL_MM):
+            ring = _close_ring([(x, y) for x, y in path], 1.0)
+            if ring and _valid_area(ring):
+                rings.append(ring)
     return rings
 
 

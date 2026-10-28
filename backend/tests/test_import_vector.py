@@ -50,6 +50,27 @@ def test_gap_3mm_ignored():
     assert rings == []
 
 
+def test_shared_edge_line_network_yields_both_faces():
+    doc = ezdxf.new()
+    msp = doc.modelspace()
+    msp.add_line((0, 0), (100, 0))
+    msp.add_line((100, 0), (100, 50))
+    msp.add_line((100, 50), (0, 50))
+    msp.add_line((0, 50), (0, 0))
+    msp.add_line((100, 0), (200, 0))
+    msp.add_line((200, 0), (200, 50))
+    msp.add_line((200, 50), (100, 50))
+    from io import StringIO
+
+    buf = StringIO()
+    doc.write(buf)
+    rings = import_vector(buf.getvalue().encode("utf-8"), "split.dxf")
+    areas = sorted(Polygon(r).area for r in rings)
+    assert len(areas) == 2
+    assert abs(areas[0] - 5000) < 1e-3
+    assert abs(areas[1] - 5000) < 1e-3
+
+
 def test_topshell_spline_outline():
     rings = import_vector((ROOT / "samples" / "TOPSHELL.DXF").read_bytes(), "TOPSHELL.DXF")
     assert rings
