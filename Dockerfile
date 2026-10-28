@@ -4,6 +4,7 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ .
 COPY backend/app /backend/app
+COPY samples /samples
 RUN node scripts/warm-pyodide.mjs && npm run build
 
 FROM node:22-alpine
