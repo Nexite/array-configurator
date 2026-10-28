@@ -3,6 +3,7 @@ from __future__ import annotations
 from shapely.geometry import MultiPolygon
 from shapely.prepared import prep
 
+from app.geometry.conventional import pack_conventional
 from app.geometry.panel import cell_pitch, cell_polygon, panel_footprint, split_disconnected
 from app.geometry.score import rank_key, score_layout
 from app.models import Layout, LayoutParams, Panel
@@ -257,8 +258,14 @@ def pack_layouts(packable: MultiPolygon, params: LayoutParams, edge_angles_deg: 
     if packable.is_empty:
         return []
 
-    layouts: list[Layout] = []
-    for family, angles, carve in _search_specs(params, edge_angles_deg):
+    layouts: list[Layout] = list(pack_conventional(packable, params))
+    # The aligned packer is the one we keep. A single axis-aligned rectangular
+    # pass and one irregular pass stay so older layouts remain comparable,
+    # without the 15° sweep that made Generate stall on a real shell.
+    for family, angles, carve in (
+        ("rect90", [0.0], False),
+        ("irregular90", [0.0], True),
+    ):
         panels = _bottom_left_fill(packable, params, angles, carve)
         score = score_layout(panels, params)
         layouts.append(Layout(id=family, params=params, panels=panels, score=score, family=family))

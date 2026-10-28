@@ -61,19 +61,19 @@ export type Issue = {
 };
 
 export const DEFAULT_PARAMS: LayoutParams = {
-  cell_w_mm: 125,
-  cell_h_mm: 125,
-  active_w_mm: 125,
-  active_h_mm: 125,
+  cell_w_mm: 182,
+  cell_h_mm: 96,
+  active_w_mm: 182,
+  active_h_mm: 96,
   cell_gap_mm: 2,
   panel_gap_mm: 10,
   edge_inset_mm: 0,
   orientation_spread_deg: 90,
   custom_active_area: false,
   active_input: "dimensions",
-  active_mm2: 15625,
-  max_wide: 6,
-  max_tall: 10,
+  active_mm2: 17472,
+  max_wide: 24,
+  max_tall: 6,
   target_area_m2: 6.0,
   unit_scale: 1,
 };

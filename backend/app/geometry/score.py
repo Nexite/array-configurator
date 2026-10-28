@@ -21,10 +21,16 @@ def score_layout(panels: list[Panel], params: LayoutParams) -> LayoutScore:
 
 
 def rank_key(score: LayoutScore) -> tuple:
+    """Prefer no shortfall, then fewer panels, then more area.
+
+    Area above the target is kept. The user can delete cells; stopping early
+    to avoid overshooting is worse than packing the shell.
+    """
+    shortfall_m2 = max(0.0, -score.delta_m2)
     return (
-        abs(score.delta_m2),
+        shortfall_m2,
         score.panel_count,
+        -score.active_area_m2,
         -score.axis_aligned_area_m2,
         -score.rectangular_panel_count,
-        -score.active_area_m2,
     )

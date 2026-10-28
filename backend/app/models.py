@@ -27,25 +27,27 @@ class LayoutParams:
     orientation_spread_deg: float = 90.0
     custom_active_area: bool = False
     active_input: str = "dimensions"
-    active_mm2: float = 15625.0
+    active_mm2: float = 17472.0
 
 
+# half-cells, 182 × 96 mm. max_wide is cells across the shell's short
+# side and max_tall is cells along its long side.
 DEFAULT_PARAMS = LayoutParams(
-    cell_w_mm=125,
-    cell_h_mm=125,
-    active_w_mm=125,
-    active_h_mm=125,
+    cell_w_mm=182,
+    cell_h_mm=96,
+    active_w_mm=182,
+    active_h_mm=96,
     cell_gap_mm=2,
     panel_gap_mm=10,
-    max_wide=6,
-    max_tall=10,
+    max_wide=24,
+    max_tall=6,
     target_area_m2=6.0,
     unit_scale=1.0,
     edge_inset_mm=0.0,
     orientation_spread_deg=90.0,
     custom_active_area=False,
     active_input="dimensions",
-    active_mm2=15625.0,
+    active_mm2=17472.0,
 )
 
 

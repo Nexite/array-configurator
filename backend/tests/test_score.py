@@ -8,7 +8,7 @@ def test_score_two_cells():
     ]
     s = score_layout(panels, DEFAULT_PARAMS)
     assert s.cell_count == 2
-    assert abs(s.active_area_m2 - 0.03125) < 1e-12
+    assert abs(s.active_area_m2 - 0.034944) < 1e-12
     assert s.meets_target is False
 
 
@@ -71,3 +71,9 @@ def test_rank_prefers_closer_target():
     close = LayoutScore(2, 1, 5.9, -0.1, False, 5.9, 1)
     far = LayoutScore(10, 1, 1.0, -5.0, False, 1.0, 1)
     assert rank_key(close) < rank_key(far)
+
+
+def test_overpack_beats_a_shortfall():
+    over = LayoutScore(400, 6, 6.4, 0.4, True, 6.4, 6)
+    under = LayoutScore(340, 3, 5.7, -0.3, False, 5.7, 3)
+    assert rank_key(over) < rank_key(under)

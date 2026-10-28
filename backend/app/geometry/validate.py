@@ -72,11 +72,11 @@ def validate_layout(
 
     score = score_layout(panels, params)
     one = usable_cell_area_m2(params)
-    if abs(score.delta_m2) > one:
+    if score.delta_m2 < -one:
         issues.append(
             Issue(
                 kind="area_target",
-                message=f"Usable area {score.active_area_m2:.4f} m² is off target {params.target_area_m2:.4f} m²",
+                message=f"Usable area {score.active_area_m2:.4f} m² is short of target {params.target_area_m2:.4f} m²",
                 panel_ids=[],
                 measured=score.active_area_m2,
                 required=params.target_area_m2,

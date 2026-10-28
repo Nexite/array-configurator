@@ -17,6 +17,7 @@ import {
   type AppState,
 } from "./state/store";
 import { panelOutlineEdges } from "./panelOutline";
+import { shellAreaM2 } from "./shellArea";
 import { type Issue, type LayoutParams, type Panel } from "./types";
 import { fitView, panView, screenToWorld, zoomView, type Size, type View } from "./view";
 
@@ -212,6 +213,7 @@ export function App() {
   }
 
   const score = s.active?.score;
+  const shellM2 = useMemo(() => shellAreaM2(s.regions), [s.regions]);
 
   return (
     <div className="app">
@@ -229,11 +231,11 @@ export function App() {
         <h2>Cell footprint (pack)</h2>
         <label>
           Width mm
-          <input type="number" value={params.cell_w_mm} onChange={(e) => setParam("cell_w_mm", num(e.target.value, 125))} />
+          <input type="number" value={params.cell_w_mm} onChange={(e) => setParam("cell_w_mm", num(e.target.value, 182))} />
         </label>
         <label>
           Height mm
-          <input type="number" value={params.cell_h_mm} onChange={(e) => setParam("cell_h_mm", num(e.target.value, 125))} />
+          <input type="number" value={params.cell_h_mm} onChange={(e) => setParam("cell_h_mm", num(e.target.value, 96))} />
         </label>
         <details className="fold">
           <summary>Usable / active area</summary>
@@ -319,12 +321,12 @@ export function App() {
           />
         </label>
         <label>
-          Max cells wide
-          <input type="number" value={params.max_wide} onChange={(e) => setParam("max_wide", num(e.target.value, 6))} />
+          Max cells, short side
+          <input type="number" value={params.max_wide} onChange={(e) => setParam("max_wide", num(e.target.value, 24))} />
         </label>
         <label>
-          Max cells tall
-          <input type="number" value={params.max_tall} onChange={(e) => setParam("max_tall", num(e.target.value, 10))} />
+          Max cells, long side
+          <input type="number" value={params.max_tall} onChange={(e) => setParam("max_tall", num(e.target.value, 6))} />
         </label>
         <label>
           Target m²
@@ -376,6 +378,7 @@ export function App() {
         <div className="status">
           <span>Cells {score?.cell_count ?? 0}</span>
           <span>Panels {score?.panel_count ?? 0}</span>
+          <span>Shell {shellM2 == null ? "—" : `${shellM2.toFixed(3)} m²`}</span>
           <span>Usable {score?.active_area_m2.toFixed(4) ?? "0"} m²</span>
           <span>Target {params.target_area_m2.toFixed(3)} m²</span>
           <span className={score?.meets_target ? "ok" : "off"}>Δ {score?.delta_m2.toFixed(4) ?? "0"} m²</span>

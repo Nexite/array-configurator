@@ -27,7 +27,7 @@ def test_overlapping_cells_issue():
 def test_panel_gap_10_with_6mm_separation_issues():
     packable = box(-10, -10, 800, 400)
     a = _p("a", (0.0, 0.0), {(0, 0)}, w=1, h=1)
-    b = _p("b", (131.0, 0.0), {(0, 0)}, w=1, h=1)  # 125 wide + 6 mm gap
+    b = _p("b", (188.0, 0.0), {(0, 0)}, w=1, h=1)  # 182 wide + 6 mm gap
     issues = [i for i in validate_layout([a, b], DEFAULT_PARAMS, packable) if i.kind == "panel_spacing"]
     assert issues
     assert abs(issues[0].measured - 6.0) < 0.2
@@ -36,11 +36,20 @@ def test_panel_gap_10_with_6mm_separation_issues():
 
 def test_diagonal_panels_true_gap_not_aabb():
     packable = box(-500, -500, 500, 500)
+    params = LayoutParams(
+        cell_w_mm=125,
+        cell_h_mm=125,
+        active_w_mm=125,
+        active_h_mm=125,
+        cell_gap_mm=2,
+        panel_gap_mm=10,
+        max_wide=6,
+        max_tall=6,
+        target_area_m2=6.0,
+    )
     a = _p("a", (0.0, 0.0), {(0, 0)}, angle=45.0, w=1, h=1)
-    # place second cell so AABB is far but shapely distance is ~6
     b = _p("b", (125 + 6, 0.0), {(0, 0)}, angle=45.0, w=1, h=1)
-    issues = validate_layout([a, b], DEFAULT_PARAMS, packable)
-    # 45° squares: distance along x between origins 131; true gap may still be < 10
+    issues = validate_layout([a, b], params, packable)
     assert any(i.kind == "panel_spacing" for i in issues)
 
 
