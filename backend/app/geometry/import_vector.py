@@ -11,7 +11,6 @@ from shapely.ops import polygonize, unary_union
 
 CLOSE_TOL_MM = 2.0
 RASTER_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp"}
-VECTOR_EXTS = {".dxf", ".svg", ".plt", ".hpgl"}
 DROPPED_EXTS = {".pdf", ".ai", ".eps", ".dwg"}
 
 

@@ -1,19 +1,9 @@
 from __future__ import annotations
 
-from shapely.geometry import MultiPolygon, Point, Polygon
+from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import unary_union
 
 from app.models import Region, RegionKind
-
-_CYCLE = {
-    RegionKind.POPULATE: RegionKind.KEEP_OUT,
-    RegionKind.KEEP_OUT: RegionKind.UNUSED,
-    RegionKind.UNUSED: RegionKind.POPULATE,
-}
-
-
-def cycle_kind(kind: RegionKind) -> RegionKind:
-    return _CYCLE[kind]
 
 
 def classify_detected(rings: list[list[tuple[float, float]]]) -> list[Region]:

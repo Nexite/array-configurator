@@ -11,7 +11,7 @@ import score from "../../../backend/app/geometry/score.py?raw";
 import serde from "../../../backend/app/serde.py?raw";
 import validate from "../../../backend/app/geometry/validate.py?raw";
 
-/** Same modules the server runs, loaded into the browser engine. */
+/** Python geometry modules loaded into the browser engine. */
 export const PY_SOURCES: Record<string, string> = {
   "app/__init__.py": "",
   "app/models.py": models,

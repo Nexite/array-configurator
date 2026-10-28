@@ -26,7 +26,7 @@ export async function validate(
   regions: Region[],
   params: LayoutParams,
   panels: Panel[],
-): Promise<{ issues: Issue[]; score: LayoutScore }> {
+): Promise<{ issues: Issue[] }> {
   return geometry("validate", { regions, params, panels });
 }
 

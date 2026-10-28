@@ -32,7 +32,6 @@ def test_default_params():
     assert p.cell_gap_mm == 2
     assert p.panel_gap_mm == 2
     assert p.edge_inset_mm == 5.0
-    assert p.orientation_spread_deg == 90.0
     assert p.custom_active_area is False
     assert p.active_input == "dimensions"
     assert p.max_wide == 24

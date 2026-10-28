@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPyodide } from "pyodide";
-import { bestOnAngle, prepareRaster, rasterPhases, releaseRaster } from "../src/engine/raster.mjs";
+import { bestOnAngle, prepareRaster, releaseRaster } from "../src/engine/raster.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const app = path.join(root, "backend", "app");
@@ -33,7 +33,7 @@ for (const [rel, text] of Object.entries(sources())) {
   py.FS.writeFile(`/pkg/${rel}`, text);
 }
 py.runPython("import sys\nsys.path.insert(0, '/pkg')\n");
-py.registerJsModule("raster_js", { bestOnAngle, prepareRaster, rasterPhases, releaseRaster });
+py.registerJsModule("raster_js", { bestOnAngle, prepareRaster, releaseRaster });
 
 const svg = readFileSync(path.join(root, "samples", "rectangle.svg"));
 py.globals.set("op", "import");

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from io import StringIO
 
 import ezdxf
@@ -12,22 +11,6 @@ from app.serde import layout_to_dict, region_to_dict
 
 def export_json(layout: Layout, regions: list[Region]) -> dict:
     return {"layout": layout_to_dict(layout), "regions": [region_to_dict(r) for r in regions]}
-
-
-def layout_from_json(data: dict) -> tuple[Layout, list[Region]]:
-    from app.serde import panel_from_dict, params_from_dict, region_from_dict
-    from app.models import Layout
-
-    raw = data["layout"]
-    layout = Layout(
-        id=raw["id"],
-        params=params_from_dict(raw["params"]),
-        panels=[panel_from_dict(p) for p in raw["panels"]],
-        score=None,
-        family=raw.get("family", "rect90"),
-    )
-    regions = [region_from_dict(r) for r in data.get("regions", [])]
-    return layout, regions
 
 
 def export_svg(layout: Layout, regions: list[Region]) -> str:

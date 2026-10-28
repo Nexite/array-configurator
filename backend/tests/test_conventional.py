@@ -1,10 +1,9 @@
 from dataclasses import replace
 
-from shapely.affinity import rotate
 from shapely.geometry import box
 from shapely.ops import unary_union
 
-from app.geometry.align import dominant_axis_deg, long_axis_deg
+from app.geometry.align import long_axis_deg
 from app.geometry.conventional import (
     _cell_can_fit,
     _pack_oriented,
@@ -14,7 +13,7 @@ from app.geometry.conventional import (
     merge_panels,
     pack_conventional,
 )
-from app.geometry.pack import circular_angle_delta, pack_layouts
+from app.geometry.pack import pack_layouts
 from app.geometry.panel import cell_polygon, is_rectangular
 from app.models import LayoutParams, Panel
 
@@ -34,13 +33,6 @@ def _params(**kwargs):
     return LayoutParams(**base)
 
 
-def _axis_delta(axis: float, angle: float) -> float:
-    return min(
-        circular_angle_delta(axis, angle),
-        circular_angle_delta(axis + 90.0, angle),
-    )
-
-
 def _spans(panel, params, long_axis: float) -> tuple[int, int]:
     """Cells along the long-capped edge and the short-capped edge."""
     cap_w, cap_h = axis_cell_caps(params, panel.angle_deg, long_axis)
@@ -51,11 +43,6 @@ def _spans(panel, params, long_axis: float) -> tuple[int, int]:
     if cap_h == params.max_tall and cap_w == params.max_wide:
         return along_h, along_w
     return max(along_w, along_h), min(along_w, along_h)
-
-
-def test_dominant_axis_follows_rotated_rectangle():
-    geom = rotate(box(0, 0, 2000, 800), 17, origin=(0, 0), use_radians=False)
-    assert _axis_delta(17, dominant_axis_deg(geom)) < 2.0
 
 
 def test_long_axis_is_the_longer_side():

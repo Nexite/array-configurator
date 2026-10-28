@@ -322,14 +322,6 @@ export function App() {
           <input type="number" value={params.edge_inset_mm} onChange={(e) => setParam("edge_inset_mm", num(e.target.value, 5))} />
         </label>
         <label>
-          Orientation spread °
-          <input
-            type="number"
-            value={params.orientation_spread_deg}
-            onChange={(e) => setParam("orientation_spread_deg", num(e.target.value, 90))}
-          />
-        </label>
-        <label>
           Max cells, short side
           <input type="number" value={params.max_wide} onChange={(e) => setParam("max_wide", num(e.target.value, 24))} />
         </label>

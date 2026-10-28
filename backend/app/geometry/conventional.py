@@ -291,34 +291,7 @@ def _grid(geom, angle: float, phase_u: float, phase_v: float, px: float, py: flo
 
 
 def _phase_masks(geom, grown, params: LayoutParams, angle: float, phases: list[tuple[float, float]]):
-    """Cell masks for each phase. The browser supplies the grid test when it can."""
-    px = params.cell_w_mm + params.cell_gap_mm
-    py = params.cell_h_mm + params.cell_gap_mm
-    backend = _raster_js()
-    if backend is None or grown is None or grown.is_empty:
-        return [_raster(geom, params, angle, pu, pv, grown) for pu, pv in phases]
-    origins = []
-    spec = []
-    for pu, pv in phases:
-        u0, v0, ni, nj = _grid(geom, angle, pu, pv, px, py)
-        origins.append((u0, v0))
-        spec.append({"u0": u0, "v0": v0, "ni": ni, "nj": nj})
-    prep = backend.prepareRaster(_polygon_rings(grown))
-    try:
-        raw = backend.rasterPhases(prep, float(angle), spec, px, py, params.cell_w_mm, params.cell_h_mm)
-        payload = raw.to_py()
-    finally:
-        backend.releaseRaster(prep)
-    masks = []
-    cursor = 0
-    data = payload["data"]
-    for origin, count in zip(origins, payload["counts"]):
-        cells = set()
-        for _ in range(int(count)):
-            cells.add((int(data[cursor]), int(data[cursor + 1])))
-            cursor += 2
-        masks.append((cells, origin))
-    return masks
+    return [_raster(geom, params, angle, pu, pv, grown) for pu, pv in phases]
 
 
 def _best_from_js(backend, geom, grown, params: LayoutParams, angle: float, phases, cap_w: int, cap_h: int):

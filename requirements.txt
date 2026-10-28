@@ -1,4 +1,0 @@
-shapely
-ezdxf
-svgelements
-pytest

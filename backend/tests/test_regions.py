@@ -1,4 +1,4 @@
-from app.geometry.regions import classify_detected, cycle_kind, packable_polygon
+from app.geometry.regions import classify_detected, packable_polygon
 from app.models import Region, RegionKind
 
 
@@ -35,9 +35,3 @@ def test_unused_also_empty():
 def test_disjoint_second_island_starts_populate():
     regions = classify_detected([_square(0, 0, 10, 10), _square(20, 0, 30, 10)])
     assert all(r.kind == RegionKind.POPULATE for r in regions)
-
-
-def test_cycle_kind_order():
-    assert cycle_kind(RegionKind.POPULATE) == RegionKind.KEEP_OUT
-    assert cycle_kind(RegionKind.KEEP_OUT) == RegionKind.UNUSED
-    assert cycle_kind(RegionKind.UNUSED) == RegionKind.POPULATE

@@ -55,7 +55,7 @@ label.check input { accent-color: var(--accent); }
 .mode button { flex: 1; }
 .mode button.active { border-color: var(--accent); color: #fff; }
 input:disabled, button:disabled { opacity: 0.45; cursor: default; }
-input, select, button { background: #0e1014; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+input, button { background: #0e1014; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
 button { cursor: pointer; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; margin: 8px 0; }
 button.danger { color: var(--danger); }
@@ -80,8 +80,7 @@ svg.board {
   overscroll-behavior: none;
 }
 svg.board.panning { cursor: grabbing; }
-.issue { padding: 6px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-.issue:hover { color: var(--accent); }
+.issue { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .card { border: 1px solid var(--line); padding: 8px; margin-bottom: 8px; cursor: pointer; }
 .card.active { border-color: var(--accent); }
 .hint { color: var(--muted); font-size: 12px; }

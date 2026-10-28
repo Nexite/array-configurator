@@ -8,7 +8,6 @@ export type LayoutParams = {
   cell_gap_mm: number;
   panel_gap_mm: number;
   edge_inset_mm: number;
-  orientation_spread_deg: number;
   custom_active_area: boolean;
   active_input: "dimensions" | "area";
   active_mm2: number;
@@ -68,7 +67,6 @@ export const DEFAULT_PARAMS: LayoutParams = {
   cell_gap_mm: 2,
   panel_gap_mm: 2,
   edge_inset_mm: 5,
-  orientation_spread_deg: 90,
   custom_active_area: false,
   active_input: "dimensions",
   active_mm2: 15625,
@@ -78,7 +76,7 @@ export const DEFAULT_PARAMS: LayoutParams = {
   unit_scale: 1,
 };
 
-export function usableCellAreaM2(params: LayoutParams): number {
+function usableCellAreaM2(params: LayoutParams): number {
   if (!params.custom_active_area) return (params.cell_w_mm * params.cell_h_mm) / 1e6;
   if (params.active_input === "area") return params.active_mm2 / 1e6;
   return (params.active_w_mm * params.active_h_mm) / 1e6;

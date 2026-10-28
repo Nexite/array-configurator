@@ -12,7 +12,6 @@ from app.geometry.score import score_layout
 from app.geometry.validate import validate_layout
 from app.models import Layout
 from app.serde import (
-    bounds_of,
     layout_to_dict,
     panel_from_dict,
     params_from_dict,
@@ -27,7 +26,7 @@ def handle(op: str, payload: dict) -> dict:
         data = base64.b64decode(payload["data_b64"])
         rings = import_vector(data, payload["filename"], float(payload.get("unit_scale", 1)))
         regions = classify_detected(rings)
-        return {"regions": [region_to_dict(r) for r in regions], "bounds": bounds_of(regions)}
+        return {"regions": [region_to_dict(r) for r in regions]}
     if op == "pack":
         regions = [region_from_dict(r) for r in payload["regions"]]
         params = params_from_dict(payload.get("params"))

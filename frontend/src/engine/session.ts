@@ -1,4 +1,4 @@
-import { bestOnAngle, prepareRaster, rasterPhases, releaseRaster } from "./raster.mjs";
+import { bestOnAngle, prepareRaster, releaseRaster } from "./raster.mjs";
 import { PY_SOURCES } from "./sources";
 
 export type PyEngine = {
@@ -23,7 +23,7 @@ await micropip.install(${JSON.stringify(specs)})
 }
 
 export function registerRaster(py: PyEngine): void {
-  py.registerJsModule("raster_js", { bestOnAngle, prepareRaster, rasterPhases, releaseRaster });
+  py.registerJsModule("raster_js", { bestOnAngle, prepareRaster, releaseRaster });
 }
 
 export function mountSources(py: PyEngine): void {

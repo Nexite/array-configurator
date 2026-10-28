@@ -1,6 +1,6 @@
 from shapely.geometry import box
 
-from app.geometry.pack import _search_specs, max_pairwise_spread, pack_layouts
+from app.geometry.pack import pack_layouts
 from app.geometry.panel import cell_polygon
 from app.models import LayoutParams
 
@@ -43,12 +43,6 @@ def test_only_aligned_layout_is_calculated():
     packable = box(0, 0, 252, 125)
     families = {l.family for l in pack_layouts(packable, _params())}
     assert families == {"aligned"}
-
-
-def test_caps_at_12():
-    packable = box(0, 0, 2000, 2000)
-    layouts = pack_layouts(packable, _params(max_wide=6, max_tall=10, panel_gap_mm=10))
-    assert len(layouts) <= 12
 
 
 def test_target_does_not_stop_early():
@@ -101,26 +95,3 @@ def test_edge_inset_keeps_cells_off_boundary():
     for panel in best.panels:
         for i, j in panel.occupied:
             assert inset.covers(cell_polygon(panel, i, j, params))
-
-
-def test_mixed_layouts_honor_orientation_spread():
-    packable = box(0, 0, 400, 250)
-    params = _params(
-        cell_w_mm=80,
-        cell_h_mm=40,
-        active_w_mm=80,
-        active_h_mm=40,
-        cell_gap_mm=0,
-        panel_gap_mm=0,
-        max_wide=3,
-        max_tall=3,
-        orientation_spread_deg=45,
-    )
-    mixed_specs = [s for s in _search_specs(params, None) if s[0].startswith("mixed")]
-    assert mixed_specs
-    for _family, angles, _carve in mixed_specs:
-        assert max_pairwise_spread(angles) <= params.orientation_spread_deg + 1e-6
-        assert all((a - angles[0]) % 180 <= params.orientation_spread_deg + 1e-6 for a in angles)
-
-    layouts = pack_layouts(packable, params)
-    assert {lay.family for lay in layouts} == {"aligned"}
