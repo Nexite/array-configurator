@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from shapely.geometry import MultiPolygon
 
+from app.geometry.pack import inset_packable
 from app.geometry.panel import cell_polygon, panel_footprint, split_disconnected
 from app.models import Issue, LayoutParams, Panel, usable_cell_area_m2
 from app.geometry.score import score_layout
@@ -15,7 +16,8 @@ def validate_layout(
     packable: MultiPolygon,
 ) -> list[Issue]:
     issues: list[Issue] = []
-    inward = packable.buffer(-INSIDE_EPS) if not packable.is_empty else packable
+    clipped = inset_packable(packable, params.edge_inset_mm)
+    inward = clipped.buffer(-INSIDE_EPS) if not clipped.is_empty else clipped
 
     for panel in panels:
         if len(split_disconnected(panel)) > 1:

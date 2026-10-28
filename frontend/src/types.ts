@@ -7,6 +7,7 @@ export type LayoutParams = {
   active_h_mm: number;
   cell_gap_mm: number;
   panel_gap_mm: number;
+  edge_inset_mm: number;
   max_wide: number;
   max_tall: number;
   target_area_m2: number;
@@ -62,6 +63,7 @@ export const DEFAULT_PARAMS: LayoutParams = {
   active_h_mm: 125,
   cell_gap_mm: 2,
   panel_gap_mm: 10,
+  edge_inset_mm: 0,
   max_wide: 6,
   max_tall: 10,
   target_area_m2: 6.0,

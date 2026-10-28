@@ -8,6 +8,12 @@ from app.main import create_app
 client = TestClient(create_app())
 
 
+def test_health():
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+
+
 def test_import_rectangle_svg():
     svg = b"""<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='1000mm' height='500mm' viewBox='0 0 1000 500'><rect x='0' y='0' width='1000' height='500'/></svg>"""
     r = client.post("/api/import", files={"file": ("rectangle.svg", svg, "image/svg+xml")})

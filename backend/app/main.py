@@ -62,6 +62,10 @@ def create_app() -> FastAPI:
         regions = classify_detected(rings)
         return {"regions": [region_to_dict(r) for r in regions], "bounds": bounds_of(regions)}
 
+    @app.get("/health")
+    def health():
+        return {"ok": True}
+
     @app.post("/api/import")
     async def api_import(file: UploadFile = File(...), unit_scale: float = Form(1.0)):
         data = await file.read()

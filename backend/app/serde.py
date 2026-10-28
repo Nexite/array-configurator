@@ -18,6 +18,7 @@ def params_from_dict(d: dict | None) -> LayoutParams:
         max_tall=int(src.get("max_tall", DEFAULT_PARAMS.max_tall)),
         target_area_m2=float(src.get("target_area_m2", DEFAULT_PARAMS.target_area_m2)),
         unit_scale=float(src.get("unit_scale", 1.0)),
+        edge_inset_mm=float(src.get("edge_inset_mm", DEFAULT_PARAMS.edge_inset_mm)),
     )
 
 
@@ -29,6 +30,7 @@ def params_to_dict(p: LayoutParams) -> dict:
         "active_h_mm": p.active_h_mm,
         "cell_gap_mm": p.cell_gap_mm,
         "panel_gap_mm": p.panel_gap_mm,
+        "edge_inset_mm": p.edge_inset_mm,
         "max_wide": p.max_wide,
         "max_tall": p.max_tall,
         "target_area_m2": p.target_area_m2,

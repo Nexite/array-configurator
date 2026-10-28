@@ -31,6 +31,7 @@ def test_default_params():
     assert p.active_h_mm == 125
     assert p.cell_gap_mm == 2
     assert p.panel_gap_mm == 10
+    assert p.edge_inset_mm == 0.0
     assert p.max_wide == 6
     assert p.max_tall == 10
     assert p.target_area_m2 == 6.0

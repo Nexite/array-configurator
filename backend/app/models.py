@@ -23,6 +23,7 @@ class LayoutParams:
     max_tall: int
     target_area_m2: float
     unit_scale: float = 1.0
+    edge_inset_mm: float = 0.0
 
 
 DEFAULT_PARAMS = LayoutParams(
@@ -36,6 +37,7 @@ DEFAULT_PARAMS = LayoutParams(
     max_tall=10,
     target_area_m2=6.0,
     unit_scale=1.0,
+    edge_inset_mm=0.0,
 )
 
 

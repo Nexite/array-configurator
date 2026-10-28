@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from shapely.geometry import MultiPolygon
+from shapely.prepared import prep
 
 from app.geometry.panel import cell_pitch, cell_polygon, panel_footprint, split_disconnected
 from app.geometry.score import rank_key, score_layout
@@ -9,6 +10,7 @@ from app.models import Layout, LayoutParams, Panel
 ALLOWED_ANGLES = list(range(0, 180, 15))
 MAX_LAYOUTS = 12
 INSIDE_EPS = 1e-4
+MAX_PANELS = 400
 
 
 def _full(w: int, h: int) -> frozenset[tuple[int, int]]:
@@ -20,65 +22,97 @@ def _sizes(params: LayoutParams, swap: bool) -> list[tuple[int, int]]:
     return [(w, h) for w in range(max_w, 0, -1) for h in range(max_h, 0, -1)]
 
 
-def _contained(panel: Panel, i: int, j: int, params: LayoutParams, packable) -> bool:
-    poly = cell_polygon(panel, i, j, params)
-    return packable.buffer(INSIDE_EPS).covers(poly)
+def _as_multi(geom) -> MultiPolygon:
+    if geom is None or geom.is_empty:
+        return MultiPolygon()
+    if geom.geom_type == "Polygon":
+        return MultiPolygon([geom])
+    if geom.geom_type == "MultiPolygon":
+        return geom
+    return MultiPolygon([g for g in geom.geoms if g.geom_type == "Polygon"])
 
 
-def _fits_cells(panel: Panel, params: LayoutParams, packable) -> bool:
-    return bool(panel.occupied) and all(_contained(panel, i, j, params, packable) for i, j in panel.occupied)
+def inset_packable(packable, inset_mm: float) -> MultiPolygon:
+    if inset_mm <= 0 or packable.is_empty:
+        return _as_multi(packable)
+    return _as_multi(packable.buffer(-inset_mm))
 
 
-def _conflicts(panel: Panel, existing: list[Panel], params: LayoutParams) -> bool:
-    fp = panel_footprint(panel, params)
-    if fp.is_empty:
-        return True
-    for other in existing:
-        ofp = panel_footprint(other, params)
-        if fp.intersects(ofp.buffer(-1e-6)):
-            return True
-        if params.panel_gap_mm > 0 and fp.distance(ofp) < params.panel_gap_mm - 1e-9:
-            return True
-    return False
+def _refresh(geom):
+    cleaned = _as_multi(geom.buffer(0) if not geom.is_empty else geom)
+    if cleaned.is_empty:
+        return cleaned, None
+    return cleaned, prep(cleaned.buffer(INSIDE_EPS))
 
 
-def _carve(origin, angle, w, h, params, packable) -> frozenset[tuple[int, int]]:
+def _contained_prep(prepared, panel: Panel, i: int, j: int, params: LayoutParams) -> bool:
+    return prepared.covers(cell_polygon(panel, i, j, params))
+
+
+def _carve(origin, angle, w, h, params, prepared) -> frozenset[tuple[int, int]]:
     dummy = Panel("t", origin, angle, w, h, _full(w, h))
-    kept = {(i, j) for i, j in dummy.occupied if _contained(dummy, i, j, params, packable)}
+    kept = {(i, j) for i, j in dummy.occupied if _contained_prep(prepared, dummy, i, j, params)}
     if not kept:
         return frozenset()
     parts = split_disconnected(Panel("t", origin, angle, w, h, frozenset(kept)))
     return max(parts, key=lambda p: len(p.occupied)).occupied
 
 
-def _try_panel(origin, angle, w, h, occupied, params, packable, existing, pid) -> Panel | None:
-    panel = Panel(pid, origin, angle, w, h, occupied)
-    if not _fits_cells(panel, params, packable):
+def _best_at(origin, angle, params, prepared, carve: bool) -> Panel | None:
+    seed = Panel("s", origin, angle, 1, 1, frozenset({(0, 0)}))
+    if not _contained_prep(prepared, seed, 0, 0, params):
         return None
-    if _conflicts(panel, existing, params):
-        return None
-    return panel
+    swaps = [False, True] if angle % 90 == 0 else [False]
+    best: Panel | None = None
+    for swap in swaps:
+        if carve:
+            mw, mh = (params.max_tall, params.max_wide) if swap else (params.max_wide, params.max_tall)
+            occupied = _carve(origin, angle, mw, mh, params, prepared)
+            if occupied and (best is None or len(occupied) > len(best.occupied)):
+                best = Panel("t", origin, angle, mw, mh, occupied)
+            continue
+        for w, h in _sizes(params, swap):
+            panel = Panel("t", origin, angle, w, h, _full(w, h))
+            fp = panel_footprint(panel, params)
+            if fp.is_empty or not prepared.covers(fp):
+                continue
+            if best is None or len(panel.occupied) > len(best.occupied):
+                best = panel
+            break
+    return best
 
 
-def _origins(packable, params) -> list[tuple[float, float]]:
-    minx, miny, _, _ = packable.bounds
+def _bottom_left_fill(packable, params: LayoutParams, angles: list[float], carve: bool) -> list[Panel]:
+    """Bottom-left-fill using inner-fit (covers). Subtract each panel plus panel gap."""
+    remaining, prepared = _refresh(packable)
+    if prepared is None:
+        return []
     px, py = cell_pitch(params)
-    return [(minx + fx * px, miny + fy * py) for fx in (0.0, 0.5) for fy in (0.0, 0.5)]
-
-
-def _greedy(packable, params, angles: list[float], carve: bool) -> list[Panel]:
     placed: list[Panel] = []
     n = 0
-    for origin in _origins(packable, params):
-        for angle in angles:
-            swaps = [False, True] if angle % 90 == 0 else [False]
-            for swap in swaps:
-                for w, h in _sizes(params, swap):
-                    occupied = _carve(origin, angle, w, h, params, packable) if carve else _full(w, h)
-                    panel = _try_panel(origin, angle, w, h, occupied, params, packable, placed, f"p{n}")
-                    if panel:
-                        placed.append(panel)
-                        n += 1
+    while n < MAX_PANELS and prepared is not None and not remaining.is_empty:
+        minx, miny, maxx, maxy = remaining.bounds
+        found: Panel | None = None
+        y = miny
+        while y < maxy - 1e-6 and found is None:
+            x = minx
+            while x < maxx - 1e-6 and found is None:
+                for angle in angles:
+                    cand = _best_at((x, y), angle, params, prepared, carve)
+                    if cand:
+                        found = cand
+                        break
+                x += px
+            y += py
+        if found is None:
+            break
+        found = Panel(f"p{n}", found.origin, found.angle_deg, found.cells_wide, found.cells_tall, found.occupied)
+        placed.append(found)
+        n += 1
+        hole = panel_footprint(found, params)
+        if params.panel_gap_mm > 0:
+            hole = hole.buffer(params.panel_gap_mm)
+        remaining, prepared = _refresh(remaining.difference(hole))
     return placed
 
 
@@ -104,6 +138,7 @@ def _dedup(layouts: list[Layout]) -> list[Layout]:
 
 
 def pack_layouts(packable: MultiPolygon, params: LayoutParams, edge_angles_deg: list[float] | None = None) -> list[Layout]:
+    packable = inset_packable(packable, params.edge_inset_mm)
     if packable.is_empty:
         return []
     extra = [a % 180 for a in (edge_angles_deg or [])]
@@ -116,7 +151,7 @@ def pack_layouts(packable: MultiPolygon, params: LayoutParams, edge_angles_deg: 
     ]
     layouts: list[Layout] = []
     for family, angles, carve in specs:
-        panels = _greedy(packable, params, angles, carve)
+        panels = _bottom_left_fill(packable, params, angles, carve)
         score = score_layout(panels, params)
         layouts.append(Layout(id=family, params=params, panels=panels, score=score, family=family))
 

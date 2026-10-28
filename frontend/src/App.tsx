@@ -223,6 +223,10 @@ export function App() {
           <input type="number" value={params.panel_gap_mm} onChange={(e) => setParam("panel_gap_mm", num(e.target.value, 10))} />
         </label>
         <label>
+          Edge inset mm
+          <input type="number" value={params.edge_inset_mm} onChange={(e) => setParam("edge_inset_mm", num(e.target.value, 0))} />
+        </label>
+        <label>
           Max cells wide
           <input type="number" value={params.max_wide} onChange={(e) => setParam("max_wide", num(e.target.value, 6))} />
         </label>
