@@ -7,6 +7,7 @@ COPY backend/app /backend/app
 RUN node scripts/warm-pyodide.mjs && npm run build
 
 FROM node:22-alpine
+RUN apk add --no-cache curl
 WORKDIR /srv
 COPY --from=ui /ui/dist /srv/dist
 COPY frontend/scripts/static-server.mjs /srv/static-server.mjs
