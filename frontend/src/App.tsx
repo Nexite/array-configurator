@@ -232,11 +232,11 @@ export function App() {
         <h2>Cell footprint (pack)</h2>
         <label>
           Width mm
-          <input type="number" value={params.cell_w_mm} onChange={(e) => setParam("cell_w_mm", num(e.target.value, 182))} />
+          <input type="number" value={params.cell_w_mm} onChange={(e) => setParam("cell_w_mm", num(e.target.value, 125))} />
         </label>
         <label>
           Height mm
-          <input type="number" value={params.cell_h_mm} onChange={(e) => setParam("cell_h_mm", num(e.target.value, 96))} />
+          <input type="number" value={params.cell_h_mm} onChange={(e) => setParam("cell_h_mm", num(e.target.value, 125))} />
         </label>
         <details className="fold">
           <summary>Usable / active area</summary>
@@ -307,11 +307,11 @@ export function App() {
         </label>
         <label>
           Panel gap mm
-          <input type="number" value={params.panel_gap_mm} onChange={(e) => setParam("panel_gap_mm", num(e.target.value, 10))} />
+          <input type="number" value={params.panel_gap_mm} onChange={(e) => setParam("panel_gap_mm", num(e.target.value, 2))} />
         </label>
         <label>
           Edge inset mm
-          <input type="number" value={params.edge_inset_mm} onChange={(e) => setParam("edge_inset_mm", num(e.target.value, 0))} />
+          <input type="number" value={params.edge_inset_mm} onChange={(e) => setParam("edge_inset_mm", num(e.target.value, 5))} />
         </label>
         <label>
           Orientation spread °

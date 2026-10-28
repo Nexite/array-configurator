@@ -25,13 +25,13 @@ def _panel(**kwargs) -> Panel:
 
 def test_default_params():
     p = DEFAULT_PARAMS
-    assert p.cell_w_mm == 182
-    assert p.cell_h_mm == 96
-    assert p.active_w_mm == 182
-    assert p.active_h_mm == 96
+    assert p.cell_w_mm == 125
+    assert p.cell_h_mm == 125
+    assert p.active_w_mm == 125
+    assert p.active_h_mm == 125
     assert p.cell_gap_mm == 2
-    assert p.panel_gap_mm == 10
-    assert p.edge_inset_mm == 0.0
+    assert p.panel_gap_mm == 2
+    assert p.edge_inset_mm == 5.0
     assert p.orientation_spread_deg == 90.0
     assert p.custom_active_area is False
     assert p.active_input == "dimensions"
@@ -42,32 +42,32 @@ def test_default_params():
 
 
 def test_cell_pitch_adds_gap():
-    assert cell_pitch(DEFAULT_PARAMS) == (184.0, 98.0)
+    assert cell_pitch(DEFAULT_PARAMS) == (127.0, 127.0)
 
 
 def test_cell_00_at_origin_unrotated():
     panel = _panel()
     poly = cell_polygon(panel, 0, 0, DEFAULT_PARAMS)
-    assert poly.bounds == (0.0, 0.0, 182.0, 96.0)
+    assert poly.bounds == (0.0, 0.0, 125.0, 125.0)
 
 
 def test_cell_10_uses_cell_gap():
     panel = _panel(occupied=frozenset({(1, 0)}))
     poly = cell_polygon(panel, 1, 0, DEFAULT_PARAMS)
     minx, miny, maxx, maxy = poly.bounds
-    assert minx == 184.0
+    assert minx == 127.0
     assert miny == 0.0
-    assert maxx == 366.0
-    assert maxy == 96.0
+    assert maxx == 252.0
+    assert maxy == 125.0
 
 
 def test_rotated_90_swaps_axes():
     panel = _panel(angle_deg=90.0)
     poly = cell_polygon(panel, 0, 0, DEFAULT_PARAMS)
-    assert abs(poly.area - 17472.0) < 1e-6
+    assert abs(poly.area - 15625.0) < 1e-6
     c = poly.centroid
-    assert abs(c.x - (-48.0)) < 1e-6
-    assert abs(c.y - 91.0) < 1e-6
+    assert abs(c.x - (-62.5)) < 1e-6
+    assert abs(c.y - 62.5) < 1e-6
 
 
 def test_split_l_shape_stays_one_panel():

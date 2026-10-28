@@ -26,9 +26,20 @@ def test_overlapping_cells_issue():
 
 def test_panel_gap_10_with_6mm_separation_issues():
     packable = box(-10, -10, 800, 400)
+    params = LayoutParams(
+        cell_w_mm=182,
+        cell_h_mm=96,
+        active_w_mm=182,
+        active_h_mm=96,
+        cell_gap_mm=2,
+        panel_gap_mm=10,
+        max_wide=24,
+        max_tall=6,
+        target_area_m2=6.0,
+    )
     a = _p("a", (0.0, 0.0), {(0, 0)}, w=1, h=1)
     b = _p("b", (188.0, 0.0), {(0, 0)}, w=1, h=1)  # 182 wide + 6 mm gap
-    issues = [i for i in validate_layout([a, b], DEFAULT_PARAMS, packable) if i.kind == "panel_spacing"]
+    issues = [i for i in validate_layout([a, b], params, packable) if i.kind == "panel_spacing"]
     assert issues
     assert abs(issues[0].measured - 6.0) < 0.2
     assert issues[0].required == 10.0

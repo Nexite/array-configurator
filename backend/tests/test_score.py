@@ -8,7 +8,7 @@ def test_score_two_cells():
     ]
     s = score_layout(panels, DEFAULT_PARAMS)
     assert s.cell_count == 2
-    assert abs(s.active_area_m2 - 0.034944) < 1e-12
+    assert abs(s.active_area_m2 - 0.03125) < 1e-12
     assert s.meets_target is False
 
 
