@@ -43,7 +43,7 @@ describe("store", () => {
 
   it("status area uses n_cells * active_w * active_h / 1e6", () => {
     const panels = [panel({ occupied: [[0, 0]] })];
-    const params = { ...DEFAULT_PARAMS, active_w_mm: 100, active_h_mm: 80 };
+    const params = { ...DEFAULT_PARAMS, custom_active_area: true, active_w_mm: 100, active_h_mm: 80 };
     expect(scoreLayout(panels, params).active_area_m2).toBeCloseTo(0.008);
   });
 });

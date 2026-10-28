@@ -72,6 +72,7 @@ def test_smaller_active_area_changes_score_threshold():
         cell_h_mm=125,
         active_w_mm=100,
         active_h_mm=100,
+        custom_active_area=True,
         cell_gap_mm=2,
         panel_gap_mm=10,
         max_wide=6,

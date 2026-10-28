@@ -19,6 +19,12 @@ def params_from_dict(d: dict | None) -> LayoutParams:
         target_area_m2=float(src.get("target_area_m2", DEFAULT_PARAMS.target_area_m2)),
         unit_scale=float(src.get("unit_scale", 1.0)),
         edge_inset_mm=float(src.get("edge_inset_mm", DEFAULT_PARAMS.edge_inset_mm)),
+        orientation_spread_deg=float(
+            src.get("orientation_spread_deg", DEFAULT_PARAMS.orientation_spread_deg)
+        ),
+        custom_active_area=bool(src.get("custom_active_area", False)),
+        active_input="area" if src.get("active_input") == "area" else "dimensions",
+        active_mm2=float(src.get("active_mm2", cell_w * cell_h)),
     )
 
 
@@ -31,6 +37,10 @@ def params_to_dict(p: LayoutParams) -> dict:
         "cell_gap_mm": p.cell_gap_mm,
         "panel_gap_mm": p.panel_gap_mm,
         "edge_inset_mm": p.edge_inset_mm,
+        "orientation_spread_deg": p.orientation_spread_deg,
+        "custom_active_area": p.custom_active_area,
+        "active_input": p.active_input,
+        "active_mm2": p.active_mm2,
         "max_wide": p.max_wide,
         "max_tall": p.max_tall,
         "target_area_m2": p.target_area_m2,

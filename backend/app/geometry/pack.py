@@ -11,6 +11,7 @@ ALLOWED_ANGLES = list(range(0, 180, 15))
 MAX_LAYOUTS = 12
 INSIDE_EPS = 1e-4
 MAX_PANELS = 400
+_SQUARE_EPS_MM = 1e-6
 
 
 def _full(w: int, h: int) -> frozenset[tuple[int, int]]:
@@ -82,12 +83,25 @@ def _best_at(origin, angle, params, prepared, carve: bool) -> Panel | None:
     return best
 
 
+def _scan_steps(params: LayoutParams, angles: list[float]) -> tuple[float, float]:
+    """World-axis origin steps. 90° swaps pitch so swapped-aspect fills are not skipped."""
+    px, py = cell_pitch(params)
+    if len(angles) == 1:
+        n = _norm_angle(angles[0])
+        if abs(n) < 1e-9 or abs(n - 180.0) < 1e-9:
+            return px, py
+        if abs(n - 90.0) < 1e-9:
+            return py, px
+    step = min(px, py)
+    return step, step
+
+
 def _bottom_left_fill(packable, params: LayoutParams, angles: list[float], carve: bool) -> list[Panel]:
     """Bottom-left-fill using inner-fit (covers). Subtract each panel plus panel gap."""
     remaining, prepared = _refresh(packable)
     if prepared is None:
         return []
-    px, py = cell_pitch(params)
+    sx, sy = _scan_steps(params, angles)
     placed: list[Panel] = []
     n = 0
     while n < MAX_PANELS and prepared is not None and not remaining.is_empty:
@@ -102,8 +116,8 @@ def _bottom_left_fill(packable, params: LayoutParams, angles: list[float], carve
                     if cand:
                         found = cand
                         break
-                x += px
-            y += py
+                x += sx
+            y += sy
         if found is None:
             break
         found = Panel(f"p{n}", found.origin, found.angle_deg, found.cells_wide, found.cells_tall, found.occupied)
@@ -137,20 +151,114 @@ def _dedup(layouts: list[Layout]) -> list[Layout]:
     return out
 
 
+def circular_angle_delta(a: float, b: float) -> float:
+    """Smallest difference between two cell orientations on the 180° circle."""
+    d = abs((a - b) % 180.0)
+    return min(d, 180.0 - d)
+
+
+def max_pairwise_spread(angles: list[float]) -> float:
+    if len(angles) < 2:
+        return 0.0
+    return max(circular_angle_delta(a, b) for i, a in enumerate(angles) for b in angles[i + 1 :])
+
+
+def _norm_angle(angle: float) -> float:
+    return float(angle) % 180.0
+
+
+def _cells_are_square(params: LayoutParams) -> bool:
+    return abs(params.cell_w_mm - params.cell_h_mm) <= _SQUARE_EPS_MM
+
+
+def _rect_bases(params: LayoutParams, extra: list[float]) -> list[float]:
+    stop = 90 if _cells_are_square(params) else 180
+    bases = [float(a) for a in range(0, stop, 15)]
+    for angle in extra:
+        n = _norm_angle(angle)
+        if n not in bases:
+            bases.append(n)
+    return bases
+
+
+def _angles_in_window(start: float, spread: float, extras: list[float] | None = None) -> list[float]:
+    """Allowed angles in the forward 180° window [start, start+spread]."""
+    pool = [float(a) for a in ALLOWED_ANGLES]
+    for angle in extras or []:
+        n = _norm_angle(angle)
+        if n not in pool:
+            pool.append(n)
+    pool.sort()
+    start_n = _norm_angle(start)
+    out: list[float] = []
+    for angle in pool:
+        if (angle - start_n) % 180.0 <= spread + 1e-9:
+            out.append(angle)
+    return out
+
+
+def _rect_family(angle: float) -> str:
+    n = _norm_angle(angle)
+    if abs(n) < 1e-9 or abs(n - 180.0) < 1e-9:
+        return "rect90"
+    if abs(n - 90.0) < 1e-9:
+        return "rect90-rot"
+    return f"rect-{int(round(n))}"
+
+
+def _irregular_family(angle: float) -> str:
+    n = _norm_angle(angle)
+    if abs(n) < 1e-9 or abs(n - 180.0) < 1e-9:
+        return "irregular90"
+    if abs(n - 90.0) < 1e-9:
+        return "irregular90-rot"
+    return f"irregular-{int(round(n))}"
+
+
+def _search_specs(params: LayoutParams, edge_angles_deg: list[float] | None) -> list[tuple[str, list[float], bool]]:
+    extra = [_norm_angle(a) for a in (edge_angles_deg or [])]
+    specs: list[tuple[str, list[float], bool]] = []
+    seen: set[tuple[str, tuple[float, ...], bool]] = set()
+
+    def add(family: str, angles: list[float], carve: bool) -> None:
+        if not angles:
+            return
+        key = (family, tuple(angles), carve)
+        if key in seen:
+            return
+        seen.add(key)
+        specs.append((family, angles, carve))
+
+    for angle in _rect_bases(params, extra):
+        add(_rect_family(angle), [angle], False)
+
+    irregular_bases = [0.0, 90.0, 45.0]
+    for angle in extra:
+        if angle not in irregular_bases:
+            irregular_bases.append(angle)
+    for angle in irregular_bases:
+        add(_irregular_family(angle), [angle], True)
+
+    spread = max(0.0, float(params.orientation_spread_deg))
+    mixed_starts = [0.0]
+    if spread > 0:
+        mixed_starts.append(15.0)
+    for start in mixed_starts:
+        window = _angles_in_window(start, spread, extra)
+        if len(window) < 2:
+            continue
+        add(f"mixed-{int(round(_norm_angle(start)))}", window, False)
+
+    return specs
+
+
 def pack_layouts(packable: MultiPolygon, params: LayoutParams, edge_angles_deg: list[float] | None = None) -> list[Layout]:
     packable = inset_packable(packable, params.edge_inset_mm)
     if packable.is_empty:
         return []
-    extra = [a % 180 for a in (edge_angles_deg or [])]
-    diag_angles = sorted(set(ALLOWED_ANGLES + extra) - {0, 90})
 
-    specs = [
-        ("rect90", [0.0, 90.0], False),
-        ("irregular90", [0.0, 90.0], True),
-        ("diagonal", diag_angles or [15.0], True),
-    ]
     layouts: list[Layout] = []
-    for family, angles, carve in specs:
+    for family, angles, carve in _search_specs(params, edge_angles_deg):
         panels = _bottom_left_fill(packable, params, angles, carve)
         score = score_layout(panels, params)
         layouts.append(Layout(id=family, params=params, panels=panels, score=score, family=family))

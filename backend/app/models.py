@@ -24,6 +24,10 @@ class LayoutParams:
     target_area_m2: float
     unit_scale: float = 1.0
     edge_inset_mm: float = 0.0
+    orientation_spread_deg: float = 90.0
+    custom_active_area: bool = False
+    active_input: str = "dimensions"
+    active_mm2: float = 15625.0
 
 
 DEFAULT_PARAMS = LayoutParams(
@@ -38,10 +42,18 @@ DEFAULT_PARAMS = LayoutParams(
     target_area_m2=6.0,
     unit_scale=1.0,
     edge_inset_mm=0.0,
+    orientation_spread_deg=90.0,
+    custom_active_area=False,
+    active_input="dimensions",
+    active_mm2=15625.0,
 )
 
 
 def usable_cell_area_m2(params: LayoutParams) -> float:
+    if not params.custom_active_area:
+        return params.cell_w_mm * params.cell_h_mm / 1e6
+    if params.active_input == "area":
+        return params.active_mm2 / 1e6
     return params.active_w_mm * params.active_h_mm / 1e6
 
 

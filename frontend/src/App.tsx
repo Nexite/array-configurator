@@ -16,6 +16,7 @@ import {
   undo,
   type AppState,
 } from "./state/store";
+import { panelOutlineEdges } from "./panelOutline";
 import { type Issue, type LayoutParams, type Panel } from "./types";
 import { fitView, panView, screenToWorld, zoomView, type Size, type View } from "./view";
 
@@ -135,7 +136,38 @@ export function App() {
   }
 
   function setParam<K extends keyof LayoutParams>(k: K, v: LayoutParams[K]) {
-    setS((prev) => ({ ...prev, params: { ...prev.params, [k]: v } }));
+    setS((prev) => {
+      const params = { ...prev.params, [k]: v };
+      if (!params.custom_active_area) {
+        params.active_w_mm = params.cell_w_mm;
+        params.active_h_mm = params.cell_h_mm;
+        params.active_mm2 = params.cell_w_mm * params.cell_h_mm;
+      }
+      return { ...prev, params };
+    });
+  }
+
+  function setActiveMode(mode: LayoutParams["active_input"]) {
+    setS((prev) => {
+      const params = { ...prev.params, active_input: mode };
+      if (mode === "area") {
+        params.active_mm2 = params.active_w_mm * params.active_h_mm;
+      }
+      return { ...prev, params };
+    });
+  }
+
+  function enableCustomActive(on: boolean) {
+    setS((prev) => ({
+      ...prev,
+      params: {
+        ...prev.params,
+        custom_active_area: on,
+        active_w_mm: prev.params.cell_w_mm,
+        active_h_mm: prev.params.cell_h_mm,
+        active_mm2: prev.params.cell_w_mm * prev.params.cell_h_mm,
+      },
+    }));
   }
 
   async function onSample() {
@@ -203,16 +235,68 @@ export function App() {
           Height mm
           <input type="number" value={params.cell_h_mm} onChange={(e) => setParam("cell_h_mm", num(e.target.value, 125))} />
         </label>
-        <h2>Usable / active area</h2>
-        <p className="hint">Counts toward the target. Can be smaller than the footprint.</p>
-        <label>
-          Active W mm
-          <input type="number" value={params.active_w_mm} onChange={(e) => setParam("active_w_mm", num(e.target.value, 125))} />
-        </label>
-        <label>
-          Active H mm
-          <input type="number" value={params.active_h_mm} onChange={(e) => setParam("active_h_mm", num(e.target.value, 125))} />
-        </label>
+        <details className="fold">
+          <summary>Usable / active area</summary>
+          <p className="hint">Optional. Off by default, usable area tracks the cell footprint.</p>
+          <label className="check">
+            Custom usable area
+            <input
+              type="checkbox"
+              checked={params.custom_active_area}
+              onChange={(e) => enableCustomActive(e.target.checked)}
+            />
+          </label>
+          <div className="mode" aria-label="Usable area input">
+            <button
+              type="button"
+              className={params.active_input === "dimensions" ? "active" : ""}
+              disabled={!params.custom_active_area}
+              onClick={() => setActiveMode("dimensions")}
+            >
+              Dimensions
+            </button>
+            <button
+              type="button"
+              className={params.active_input === "area" ? "active" : ""}
+              disabled={!params.custom_active_area}
+              onClick={() => setActiveMode("area")}
+            >
+              mm²
+            </button>
+          </div>
+          {params.active_input === "area" ? (
+            <label>
+              Active mm²
+              <input
+                type="number"
+                disabled={!params.custom_active_area}
+                value={params.custom_active_area ? params.active_mm2 : params.cell_w_mm * params.cell_h_mm}
+                onChange={(e) => setParam("active_mm2", num(e.target.value, params.cell_w_mm * params.cell_h_mm))}
+              />
+            </label>
+          ) : (
+            <>
+              <label>
+                Active W mm
+                <input
+                  type="number"
+                  disabled={!params.custom_active_area}
+                  value={params.custom_active_area ? params.active_w_mm : params.cell_w_mm}
+                  onChange={(e) => setParam("active_w_mm", num(e.target.value, params.cell_w_mm))}
+                />
+              </label>
+              <label>
+                Active H mm
+                <input
+                  type="number"
+                  disabled={!params.custom_active_area}
+                  value={params.custom_active_area ? params.active_h_mm : params.cell_h_mm}
+                  onChange={(e) => setParam("active_h_mm", num(e.target.value, params.cell_h_mm))}
+                />
+              </label>
+            </>
+          )}
+        </details>
         <h2>Gaps and panels</h2>
         <label>
           Cell gap mm
@@ -225,6 +309,14 @@ export function App() {
         <label>
           Edge inset mm
           <input type="number" value={params.edge_inset_mm} onChange={(e) => setParam("edge_inset_mm", num(e.target.value, 0))} />
+        </label>
+        <label>
+          Orientation spread °
+          <input
+            type="number"
+            value={params.orientation_spread_deg}
+            onChange={(e) => setParam("orientation_spread_deg", num(e.target.value, 90))}
+          />
         </label>
         <label>
           Max cells wide
@@ -381,7 +473,7 @@ export function App() {
                   fill={bad ? "#e05a4f" : "#f0c14b"}
                   fillOpacity={0.75}
                   stroke="#111"
-                  strokeWidth={stroke / 800}
+                  strokeWidth={stroke / 1200}
                   onPointerDown={(ev) => {
                     ev.stopPropagation();
                     ev.preventDefault();
@@ -409,6 +501,26 @@ export function App() {
                     e.stopPropagation();
                     if (e.shiftKey) setS((prev) => toggleCell(prev, p.id, i, j));
                   }}
+                />
+              );
+            }),
+          )}
+          {s.active?.panels.map((p) =>
+            panelOutlineEdges(p.occupied).map((e, k) => {
+              const pts = cellPoly(p, e.i, e.j, params);
+              const a = pts[e.from];
+              const b = pts[e.to];
+              return (
+                <line
+                  key={`${p.id}-outline-${k}`}
+                  x1={a[0]}
+                  y1={a[1]}
+                  x2={b[0]}
+                  y2={b[1]}
+                  stroke="#050505"
+                  strokeWidth={stroke / 250}
+                  strokeLinecap="square"
+                  pointerEvents="none"
                 />
               );
             }),

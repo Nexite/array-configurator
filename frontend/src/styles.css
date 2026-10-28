@@ -16,7 +16,24 @@ aside, .gallery { background: var(--panel); border-right: 1px solid var(--line);
 .gallery { border-right: none; border-left: 1px solid var(--line); }
 h1 { font-size: 16px; margin: 0 0 12px; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 8px; }
+details.fold { margin: 16px 0 8px; }
+details.fold > summary {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "▸ "; }
+details.fold[open] > summary::before { content: "▾ "; }
 label { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; align-items: center; }
+label.check input { accent-color: var(--accent); }
+.mode { display: flex; gap: 4px; margin: 8px 0; }
+.mode button { flex: 1; }
+.mode button.active { border-color: var(--accent); color: #fff; }
+input:disabled, button:disabled { opacity: 0.45; cursor: default; }
 input, select, button { background: #0e1014; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
 button { cursor: pointer; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; margin: 8px 0; }

@@ -1,7 +1,7 @@
 from shapely.geometry import box
 from shapely.ops import unary_union
 
-from app.geometry.pack import pack_layouts
+from app.geometry.pack import _search_specs, max_pairwise_spread, pack_layouts
 from app.geometry.panel import cell_polygon
 from app.models import LayoutParams
 
@@ -75,6 +75,22 @@ def test_fills_large_rectangle_with_multiple_panels():
     assert best.score.cell_count > 2
 
 
+def test_picks_better_cell_rotation_for_rectangles():
+    packable = box(0, 0, 310, 130)
+    params = _params(
+        cell_w_mm=120,
+        cell_h_mm=60,
+        active_w_mm=120,
+        active_h_mm=60,
+        cell_gap_mm=0,
+        panel_gap_mm=0,
+        max_wide=6,
+        max_tall=6,
+    )
+    layouts = pack_layouts(packable, params)
+    assert max(l.score.cell_count for l in layouts) >= 5
+
+
 def test_edge_inset_keeps_cells_off_boundary():
     packable = box(0, 0, 500, 300)
     params = _params(
@@ -95,3 +111,29 @@ def test_edge_inset_keeps_cells_off_boundary():
     for panel in best.panels:
         for i, j in panel.occupied:
             assert inset.covers(cell_polygon(panel, i, j, params))
+
+
+def test_mixed_layouts_honor_orientation_spread():
+    packable = box(0, 0, 400, 250)
+    params = _params(
+        cell_w_mm=80,
+        cell_h_mm=40,
+        active_w_mm=80,
+        active_h_mm=40,
+        cell_gap_mm=0,
+        panel_gap_mm=0,
+        max_wide=3,
+        max_tall=3,
+        orientation_spread_deg=45,
+    )
+    mixed_specs = [s for s in _search_specs(params, None) if s[0].startswith("mixed")]
+    assert mixed_specs
+    for _family, angles, _carve in mixed_specs:
+        assert max_pairwise_spread(angles) <= params.orientation_spread_deg + 1e-6
+        assert all((a - angles[0]) % 180 <= params.orientation_spread_deg + 1e-6 for a in angles)
+
+    layouts = pack_layouts(packable, params)
+    mixed = [l for l in layouts if l.family.startswith("mixed")]
+    for lay in mixed:
+        placed = [p.angle_deg for p in lay.panels]
+        assert max_pairwise_spread(placed) <= params.orientation_spread_deg + 1e-6
