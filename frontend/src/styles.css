@@ -10,9 +10,30 @@
   --ok: #3ecf8e;
 }
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
-.app { display: grid; grid-template-columns: 280px 1fr 260px; height: 100%; }
-aside, .gallery { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; padding: 12px; }
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+.app {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 260px;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+aside, .gallery {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
 .gallery { border-right: none; border-left: 1px solid var(--line); }
 h1 { font-size: 16px; margin: 0 0 12px; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 16px 0 8px; }
@@ -38,11 +59,26 @@ input, select, button { background: #0e1014; color: var(--text); border: 1px sol
 button { cursor: pointer; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; margin: 8px 0; }
 button.danger { color: var(--danger); }
-.canvas-wrap { display: flex; flex-direction: column; min-width: 0; }
+.canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 .status { display: flex; gap: 16px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: #161a20; }
 .status .off { color: var(--danger); }
 .status .ok { color: var(--ok); }
-svg.board { flex: 1; width: 100%; background: #0c0e12; cursor: grab; touch-action: none; overscroll-behavior: none; }
+svg.board {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  background: #0c0e12;
+  cursor: grab;
+  touch-action: none;
+  overscroll-behavior: none;
+}
 svg.board.panning { cursor: grabbing; }
 .issue { padding: 6px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .issue:hover { color: var(--accent); }
