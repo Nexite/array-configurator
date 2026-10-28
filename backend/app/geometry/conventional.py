@@ -1,23 +1,31 @@
 """Panels on the shell axis, each panel on its own grid.
 
 Cells inside one panel share that panel's grid. A panel may align with the
-shell's long axis or sit square to it. After those two orientations are full,
-leftover pockets are tried at other angles. Panels that already fall on nearly
-the same grid are merged when the combined panel still passes the packing rules.
+shell's long axis or sit square to it. A leftover pocket is tried at other
+angles only when its widest opening can hold one cell. Panels that already
+fall on nearly the same grid are merged when the combined panel still passes
+the packing rules.
 max_tall caps the shell's long side and the cell's longer edge. max_wide caps
 the shell's short side and the cell's shorter edge. A panel has to satisfy both.
+
+A non-square cell is packed twice, once with the entered width and height and
+once with those sides exchanged. The better of the two is kept and drawn with
+the sides the user entered.
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
+import numpy as np
+from shapely import covers, maximum_inscribed_circle, polygons
 from shapely.geometry import Polygon
 from shapely.prepared import prep
 
 from app.geometry.align import long_axis_deg
 from app.geometry.panel import cell_polygon, panel_footprint, split_disconnected
-from app.geometry.score import score_layout
+from app.geometry.score import rank_key, score_layout
 from app.models import Layout, LayoutParams, Panel
 
 _MAX_PANELS = 40
@@ -121,30 +129,38 @@ def _largest_rect(
     return best[1], best[2], best[3], best[4]
 
 
-def _raster(geom, params: LayoutParams, angle: float, phase_u: float, phase_v: float):
+def _raster(geom, params: LayoutParams, angle: float, phase_u: float, phase_v: float, grown=None):
     if geom.is_empty:
         return set(), (0.0, 0.0)
-    prepared = prep(geom.buffer(1e-4))
+    if grown is None:
+        grown = geom.buffer(1e-4)
     px = params.cell_w_mm + params.cell_gap_mm
     py = params.cell_h_mm + params.cell_gap_mm
-    corners = []
+    cw, ch = params.cell_w_mm, params.cell_h_mm
     minx, miny, maxx, maxy = geom.bounds
-    for x, y in ((minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)):
-        corners.append(_to_local(x, y, angle))
+    corners = [_to_local(x, y, angle) for x, y in ((minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy))]
     u0 = min(p[0] for p in corners) + phase_u * px
     v0 = min(p[1] for p in corners) + phase_v * py
     u1 = max(p[0] for p in corners)
     v1 = max(p[1] for p in corners)
     ni = int((u1 - u0) / px) + 2
     nj = int((v1 - v0) / py) + 2
-    cells: set[tuple[int, int]] = set()
-    seed = Panel("s", (0.0, 0.0), angle, 1, 1, frozenset({(0, 0)}))
-    for i in range(max(ni, 0)):
-        for j in range(max(nj, 0)):
-            origin = _to_world(u0 + i * px, v0 + j * py, angle)
-            placed = Panel(seed.id, origin, angle, 1, 1, seed.occupied)
-            if prepared.covers(cell_polygon(placed, 0, 0, params)):
-                cells.add((i, j))
+    if ni <= 0 or nj <= 0:
+        return set(), (u0, v0)
+    rad = math.radians(angle)
+    c, s = math.cos(rad), math.sin(rad)
+    ii, jj = np.meshgrid(np.arange(ni, dtype=np.float64), np.arange(nj, dtype=np.float64), indexing="ij")
+    lx = u0 + ii * px
+    ly = v0 + jj * py
+    local = ((lx, ly), (lx + cw, ly), (lx + cw, ly + ch), (lx, ly + ch), (lx, ly))
+    xs = [clx * c - cly * s for clx, cly in local]
+    ys = [clx * s + cly * c for clx, cly in local]
+    coords = np.stack((np.stack(xs, axis=-1), np.stack(ys, axis=-1)), axis=-1).reshape(-1, 5, 2)
+    hit = np.atleast_1d(covers(grown, polygons(coords)))
+    chosen = np.flatnonzero(hit)
+    flat_i = ii.ravel()
+    flat_j = jj.ravel()
+    cells = {(int(flat_i[k]), int(flat_j[k])) for k in chosen}
     return cells, (u0, v0)
 
 
@@ -230,8 +246,9 @@ def _candidate_phases(remaining, angle: float, params: LayoutParams, panels: lis
 def _best_on_angle(remaining, params: LayoutParams, angle: float, long_axis: float, panels: list[Panel], fine: bool):
     cap_w, cap_h = axis_cell_caps(params, angle, long_axis)
     best = None
+    grown = remaining.buffer(1e-4)
     for pu, pv in _candidate_phases(remaining, angle, params, panels, fine):
-        mask, origin_local = _raster(remaining, params, angle, pu, pv)
+        mask, origin_local = _raster(remaining, params, angle, pu, pv, grown)
         rect = _largest_rect(mask, params, cap_w, cap_h)
         if rect is None:
             continue
@@ -376,21 +393,101 @@ def _primary_angles(long_axis: float) -> list[float]:
     return [long_axis % 360.0, (long_axis + 90.0) % 360.0]
 
 
+_SECONDARY_STEP_DEG = 5
+
+
 def _secondary_angles(primary: list[float]) -> list[float]:
+    """Angles other than the shell axis, every 5°."""
     out = []
-    for angle in range(0, 180, 15):
-        if all(_axis_delta(angle, base) > 10.0 for base in primary):
+    for angle in range(0, 180, _SECONDARY_STEP_DEG):
+        if all(_axis_delta(angle, base) > _SECONDARY_STEP_DEG / 2 for base in primary):
             out.append(float(angle))
     return out
+
+
+# maximum_inscribed_circle underestimates the radius by at most this much.
+_CIRCLE_TOLERANCE_MM = 0.25
+
+
+def _polygons(geom):
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "Polygon":
+        return [geom]
+    return [g for g in getattr(geom, "geoms", []) if g.geom_type == "Polygon" and not g.is_empty]
+
+
+def _cell_can_fit(geom, params: LayoutParams) -> bool:
+    """True when some pocket is wide enough that one cell might fit.
+
+    A cell cannot fit at any angle when the pocket's largest inscribed circle
+    is narrower than the cell's shorter side. The returned radius is at most
+    `_CIRCLE_TOLERANCE_MM` short of the true value, so the comparison uses that
+    upper bound and only rejects pockets that are certainly too narrow.
+    """
+    short = min(params.cell_w_mm, params.cell_h_mm)
+    need = params.cell_w_mm * params.cell_h_mm
+    for part in _polygons(geom):
+        if part.area + 1e-6 < need:
+            continue
+        radius = maximum_inscribed_circle(part, tolerance=_CIRCLE_TOLERANCE_MM).length
+        if 2 * (radius + _CIRCLE_TOLERANCE_MM) + 1e-6 >= short:
+            return True
+    return False
+
+
+def _nearly_square(params: LayoutParams) -> bool:
+    return abs(params.cell_w_mm - params.cell_h_mm) <= 1e-6
+
+
+def _swapped_cell(params: LayoutParams) -> LayoutParams:
+    """Same cell, with the entered width and height exchanged."""
+    return replace(params, cell_w_mm=params.cell_h_mm, cell_h_mm=params.cell_w_mm)
+
+
+def _reframe_swapped_panel(panel: Panel, user: LayoutParams) -> Panel:
+    """Draw a swapped-orientation panel with the user's width and height.
+
+    The swapped pack stores the user's height along local +x. Rotating the
+    panel by +90° and reversing the column index puts the user's width along
+    local +x. Each cell stays on the same world rectangle.
+    """
+    span = max(i for i, _ in panel.occupied) + 1
+    pitch = user.cell_h_mm + user.cell_gap_mm
+    x_shift = (span - 1) * pitch + user.cell_h_mm
+    dx, dy = _to_world(x_shift, 0.0, panel.angle_deg)
+    ox, oy = panel.origin
+    occupied = frozenset((j, span - 1 - i) for i, j in panel.occupied)
+    wide = max(i for i, _ in occupied) + 1
+    tall = max(j for _, j in occupied) + 1
+    return Panel(panel.id, (ox + dx, oy + dy), (panel.angle_deg + 90.0) % 360.0, wide, tall, occupied)
+
+
+def _pack_oriented(packable, params: LayoutParams) -> list[Panel]:
+    long_axis = long_axis_deg(packable)
+    primary = _primary_angles(long_axis)
+    panels, remaining = _fill(packable, params, primary, long_axis, [], True)
+    if _cell_can_fit(remaining, params):
+        panels, _remaining = _fill(remaining, params, _secondary_angles(primary), long_axis, panels, False)
+    return merge_panels(panels, params, packable, long_axis)
 
 
 def pack_conventional(packable, params: LayoutParams) -> list[Layout]:
     if packable is None or packable.is_empty:
         return []
-    long_axis = long_axis_deg(packable)
-    primary = _primary_angles(long_axis)
-    panels, remaining = _fill(packable, params, primary, long_axis, [], True)
-    panels, _remaining = _fill(remaining, params, _secondary_angles(primary), long_axis, panels, False)
-    panels = merge_panels(panels, params, packable, long_axis)
+    orientations = [params]
+    if not _nearly_square(params):
+        orientations.append(_swapped_cell(params))
+    best_panels: list[Panel] | None = None
+    best_key = None
+    for packed in orientations:
+        panels = _pack_oriented(packable, packed)
+        if packed is not params:
+            panels = [_reframe_swapped_panel(panel, params) for panel in panels]
+        key = rank_key(score_layout(panels, params))
+        if best_key is None or key < best_key:
+            best_key = key
+            best_panels = panels
+    panels = best_panels or []
     score = score_layout(panels, params)
     return [Layout(id="aligned", params=params, panels=panels, score=score, family="aligned")]

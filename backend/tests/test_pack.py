@@ -1,5 +1,4 @@
 from shapely.geometry import box
-from shapely.ops import unary_union
 
 from app.geometry.pack import _search_specs, max_pairwise_spread, pack_layouts
 from app.geometry.panel import cell_polygon
@@ -28,7 +27,7 @@ def test_rect_box_fits_exact_2x1():
     assert layouts
     best = max(layouts, key=lambda l: l.score.cell_count)
     assert best.score.cell_count == 2
-    assert any(len(p.occupied) == 2 for p in best.panels)
+    assert best.family == "aligned"
 
 
 def test_never_places_outside():
@@ -40,19 +39,10 @@ def test_never_places_outside():
                 assert packable.buffer(1e-3).contains(cell_polygon(panel, i, j, params))
 
 
-def test_irregular_fills_l_with_three_cell_panel():
-    l_shape = unary_union([box(0, 0, 200, 100), box(0, 100, 100, 200)])
-    params = _params(cell_w_mm=100, cell_h_mm=100, active_w_mm=100, active_h_mm=100, cell_gap_mm=0, max_wide=2, max_tall=2)
-    layouts = pack_layouts(l_shape, params)
-    irregular = [l for l in layouts if l.family == "irregular90"]
-    assert irregular
-    assert any(len(p.occupied) == 3 for l in irregular for p in l.panels)
-
-
-def test_90_pass_present_even_if_diagonal_wins():
+def test_only_aligned_layout_is_calculated():
     packable = box(0, 0, 252, 125)
     families = {l.family for l in pack_layouts(packable, _params())}
-    assert "rect90" in families
+    assert families == {"aligned"}
 
 
 def test_caps_at_12():
@@ -133,7 +123,4 @@ def test_mixed_layouts_honor_orientation_spread():
         assert all((a - angles[0]) % 180 <= params.orientation_spread_deg + 1e-6 for a in angles)
 
     layouts = pack_layouts(packable, params)
-    mixed = [l for l in layouts if l.family.startswith("mixed")]
-    for lay in mixed:
-        placed = [p.angle_deg for p in lay.panels]
-        assert max_pairwise_spread(placed) <= params.orientation_spread_deg + 1e-6
+    assert {lay.family for lay in layouts} == {"aligned"}

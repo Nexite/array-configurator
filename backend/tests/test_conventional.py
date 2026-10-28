@@ -1,10 +1,21 @@
+from dataclasses import replace
+
 from shapely.affinity import rotate
 from shapely.geometry import box
+from shapely.ops import unary_union
 
 from app.geometry.align import dominant_axis_deg, long_axis_deg
-from app.geometry.conventional import axis_cell_caps, merge_panels, pack_conventional
+from app.geometry.conventional import (
+    _cell_can_fit,
+    _pack_oriented,
+    _reframe_swapped_panel,
+    _secondary_angles,
+    axis_cell_caps,
+    merge_panels,
+    pack_conventional,
+)
 from app.geometry.pack import circular_angle_delta, pack_layouts
-from app.geometry.panel import is_rectangular
+from app.geometry.panel import cell_polygon, is_rectangular
 from app.models import LayoutParams, Panel
 
 def _params(**kwargs):
@@ -141,6 +152,44 @@ def test_merge_leaves_panels_that_would_break_the_long_side_cap():
     guest = _solid("b", (0.0, 608.0), 90.0, 6, 1)
     merged = merge_panels([host, guest], params, packable, 90.0)
     assert len(merged) == 2
+
+
+def test_secondary_angles_step_by_five_degrees():
+    angles = _secondary_angles([0.0, 90.0])
+    assert 0.0 not in angles and 90.0 not in angles
+    assert 5.0 in angles and 10.0 in angles and 45.0 in angles
+    assert all(abs(b - a) >= 5 - 1e-9 for a, b in zip(angles, angles[1:]))
+
+
+def test_narrow_pocket_cannot_hold_a_cell():
+    assert not _cell_can_fit(box(0, 0, 800, 20), _params())
+    assert _cell_can_fit(box(0, 0, 400, 200), _params())
+
+
+def test_swapped_panel_draws_the_same_cells_in_the_user_frame():
+    user = _params(cell_gap_mm=2, panel_gap_mm=2)
+    swapped = replace(user, cell_w_mm=user.cell_h_mm, cell_h_mm=user.cell_w_mm)
+    panel = _solid("p", (10.0, 20.0), 15.0, 3, 2)
+    framed = _reframe_swapped_panel(panel, user)
+    before = unary_union([cell_polygon(panel, i, j, swapped) for i, j in panel.occupied])
+    after = unary_union([cell_polygon(framed, i, j, user) for i, j in framed.occupied])
+    assert before.symmetric_difference(after).area < 1e-4
+    assert framed.cells_wide == 2 and framed.cells_tall == 3
+
+
+def test_either_width_order_keeps_the_fuller_pack():
+    geom = box(0, 0, 1600, 420).difference(box(900, 0, 1600, 200))
+    wide = _params(cell_gap_mm=2, panel_gap_mm=2)
+    tall = replace(wide, cell_w_mm=wide.cell_h_mm, cell_h_mm=wide.cell_w_mm, active_w_mm=wide.cell_h_mm, active_h_mm=wide.cell_w_mm)
+    entered = sum(len(panel.occupied) for panel in _pack_oriented(geom, wide))
+    exchanged = sum(len(panel.occupied) for panel in _pack_oriented(geom, tall))
+    fuller = max(entered, exchanged)
+    assert entered != exchanged
+    for params in (wide, tall):
+        lay = pack_conventional(geom, params)[0]
+        assert lay.score.cell_count == fuller
+        assert lay.params.cell_w_mm == params.cell_w_mm
+        assert lay.params.cell_h_mm == params.cell_h_mm
 
 
 def test_pack_layouts_includes_aligned_family():
