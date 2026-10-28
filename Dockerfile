@@ -3,18 +3,14 @@ WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ .
-RUN npm run build
+RUN node scripts/warm-pyodide.mjs && npm run build
 
-FROM python:3.12-slim AS app
+FROM node:22-alpine
+RUN apk add --no-cache curl
 WORKDIR /srv
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY backend/ /srv/backend/
-COPY samples/ /srv/samples/
-COPY --from=ui /ui/dist /srv/backend/app/static
-ENV PYTHONPATH=/srv/backend
+COPY --from=ui /ui/dist /srv/dist
+COPY frontend/scripts/static-server.mjs /srv/static-server.mjs
 ENV PORT=8080
+ENV STATIC_DIR=/srv/dist
 EXPOSE 8080
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["node", "static-server.mjs"]

@@ -3,8 +3,6 @@ from __future__ import annotations
 import io
 import math
 import re
-import shutil
-import tempfile
 from pathlib import Path
 
 import ezdxf
@@ -13,7 +11,8 @@ from shapely.ops import polygonize, unary_union
 
 CLOSE_TOL_MM = 2.0
 RASTER_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp"}
-VECTOR_EXTS = {".dxf", ".dwg", ".svg", ".pdf", ".ai", ".eps", ".plt", ".hpgl"}
+VECTOR_EXTS = {".dxf", ".svg", ".plt", ".hpgl"}
+DROPPED_EXTS = {".pdf", ".ai", ".eps", ".dwg"}
 
 
 class UnsupportedFormatError(ValueError):
@@ -50,31 +49,15 @@ def import_vector(data: bytes, filename: str, unit_scale: float = 1.0) -> list[l
     ext = Path(filename).suffix.lower()
     if ext in RASTER_EXTS:
         raise UnsupportedFormatError("Raster files are not supported. Use a vector file.")
-    if ext == ".dwg":
-        return _import_dwg(data, unit_scale)
+    if ext in DROPPED_EXTS:
+        raise UnsupportedFormatError("PDF, AI, EPS, and DWG are not supported. Use DXF, SVG, or HPGL.")
     if ext == ".dxf":
         return _import_dxf(data, unit_scale)
     if ext == ".svg":
         return _import_svg(data, unit_scale)
-    if ext in {".pdf", ".ai", ".eps"}:
-        return _import_pdf(data, unit_scale)
     if ext in {".plt", ".hpgl"}:
         return _import_hpgl(data, unit_scale)
     raise UnsupportedFormatError(f"Unsupported file type: {ext or filename}")
-
-
-def _import_dwg(data: bytes, unit_scale: float) -> list[list[tuple[float, float]]]:
-    conv = shutil.which("dwg2dxf")
-    if not conv:
-        raise UnsupportedFormatError("Convert DWG to DXF and upload that.")
-    with tempfile.TemporaryDirectory() as tmp:
-        src = Path(tmp) / "in.dwg"
-        dst = Path(tmp) / "out.dxf"
-        src.write_bytes(data)
-        import subprocess
-
-        subprocess.run([conv, str(src), str(dst)], check=True, capture_output=True)
-        return _import_dxf(dst.read_bytes(), unit_scale)
 
 
 def _join_paths(paths: list[list[tuple[float, float]]], tol: float) -> list[list[tuple[float, float]]]:
@@ -276,45 +259,6 @@ def _import_svg(data: bytes, unit_scale: float) -> list[list[tuple[float, float]
         ring = _close_ring(pts, unit_scale) if pts else None
         if ring and _valid_area(ring):
             rings.append(ring)
-    return rings
-
-
-def _import_pdf(data: bytes, unit_scale: float) -> list[list[tuple[float, float]]]:
-    import fitz
-
-    doc = fitz.open(stream=data, filetype="pdf")
-    rings: list[list[tuple[float, float]]] = []
-    for page in doc:
-        for drawing in page.get_drawings():
-            pts: list[tuple[float, float]] = []
-            for item in drawing.get("items", []):
-                op = item[0]
-                if op == "l":
-                    p1, p2 = item[1], item[2]
-                    if not pts:
-                        pts.append((p1.x, p1.y))
-                    pts.append((p2.x, p2.y))
-                elif op == "re":
-                    r = item[1]
-                    rect_pts = [
-                        (r.x0, r.y0),
-                        (r.x1, r.y0),
-                        (r.x1, r.y1),
-                        (r.x0, r.y1),
-                        (r.x0, r.y0),
-                    ]
-                    ring = _close_ring(rect_pts, unit_scale)
-                    if ring and _valid_area(ring):
-                        rings.append(ring)
-                elif op == "c":
-                    p = item[-1]
-                    pts.append((p.x, p.y))
-                elif op == "qu":
-                    q = item[1]
-                    pts.extend([(q.ul.x, q.ul.y), (q.ur.x, q.ur.y), (q.lr.x, q.lr.y), (q.ll.x, q.ll.y)])
-            ring = _close_ring(pts, unit_scale) if pts else None
-            if ring and _valid_area(ring):
-                rings.append(ring)
     return rings
 
 

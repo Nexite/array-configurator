@@ -80,3 +80,9 @@ def test_topshell_spline_outline():
 def test_png_rejected():
     with pytest.raises(UnsupportedFormatError, match="Raster files are not supported"):
         import_vector(b"x", "x.png")
+
+
+def test_pdf_ai_eps_and_dwg_rejected():
+    for name in ("a.pdf", "a.ai", "a.eps", "a.dwg"):
+        with pytest.raises(UnsupportedFormatError, match="DXF, SVG, or HPGL"):
+            import_vector(b"x", name)

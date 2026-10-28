@@ -1,22 +1,20 @@
 {
   "$schema": "https://schema.railpack.com",
-  "provider": "python",
+  "provider": "node",
   "packages": {
-    "python": "3.12",
     "node": "22"
   },
   "steps": {
     "build": {
       "commands": [
-        "...",
         {
           "cmd": "sh scripts/build-ui.sh",
-          "customName": "Build UI into FastAPI static"
+          "customName": "Build the static app"
         }
       ]
     }
   },
   "deploy": {
-    "startCommand": "uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8080}"
+    "startCommand": "node frontend/scripts/static-server.mjs"
   }
 }

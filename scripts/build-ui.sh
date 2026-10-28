@@ -7,8 +7,5 @@ if [ -f package-lock.json ]; then
 else
   npm install
 fi
+node scripts/warm-pyodide.mjs
 npm run build
-dest="$root/backend/app/static"
-rm -rf "$dest"
-mkdir -p "$dest"
-cp -R dist/. "$dest/"

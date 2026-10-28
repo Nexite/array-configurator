@@ -1,6 +1,6 @@
 # Array Configurator
 
-Dockerized web app that packs solar cells onto a 2D vector outline (DXF, SVG, PDF, and other common vector types), then lets you edit the layout by hand.
+Browser app that packs solar cells onto a 2D vector outline (DXF, SVG, or HPGL), then lets you edit the layout by hand. Packing, checks, and export all run in the browser. There is no API.
 
 ## Run
 
@@ -9,6 +9,8 @@ docker compose up --build
 ```
 
 Open http://localhost:8080
+
+The container only serves the built files. You can also open `frontend/dist` with any static host after `npm run build`.
 
 ## Parameters
 
@@ -21,8 +23,14 @@ Load the included `TOPSHELL.DXF` sample, click regions to choose what to populat
 ## Local dev
 
 ```bash
+cd frontend && npm install && node scripts/warm-pyodide.mjs && npm run dev
+```
+
+Open http://localhost:5173
+
+Geometry tests:
+
+```bash
 cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload --port 8080
-# in another shell
-cd frontend && npm install && npm run dev
+PYTHONPATH=backend .venv/bin/pytest
 ```

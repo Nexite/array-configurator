@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { exportFile, importFile, loadSample, pack, validate } from "./api";
+import { preloadGeometry } from "./engine/client";
 import {
   addDrawnRegion,
   confirmReplace,
@@ -46,6 +47,7 @@ export function App() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [engineReady, setEngineReady] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<[number, number][]>([]);
   const [viewport, setViewport] = useState<Size>({ w: 0, h: 0 });
@@ -74,6 +76,12 @@ export function App() {
     userView.current = false;
     setView(fitView(bounds, vp));
   }
+
+  useEffect(() => {
+    preloadGeometry()
+      .then(() => setEngineReady(true))
+      .catch((e) => setErr(String(e)));
+  }, []);
 
   useEffect(() => {
     const el = svgRef.current;
@@ -222,7 +230,7 @@ export function App() {
         <button onClick={onSample}>Load TOPSHELL sample</button>
         <label>
           Upload
-          <input type="file" onChange={(e) => e.target.files && onUpload(e.target.files[0])} />
+          <input type="file" accept=".dxf,.svg,.plt,.hpgl" onChange={(e) => e.target.files && onUpload(e.target.files[0])} />
         </label>
         <label>
           Unit scale
@@ -376,6 +384,7 @@ export function App() {
       </aside>
       <div className="canvas-wrap">
         <div className="status">
+          {!engineReady && <span>Loading geometry…</span>}
           <span>Cells {score?.cell_count ?? 0}</span>
           <span>Panels {score?.panel_count ?? 0}</span>
           <span>Shell {shellM2 == null ? "—" : `${shellM2.toFixed(3)} m²`}</span>

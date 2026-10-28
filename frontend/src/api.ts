@@ -1,26 +1,32 @@
+import { geometry } from "./engine/client";
+import { unsupportedImportMessage } from "./engine/routing";
 import type { Issue, Layout, LayoutParams, LayoutScore, Panel, Region } from "./types";
 
-async function j<T>(r: Response): Promise<T> {
-  if (!r.ok) {
-    const t = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(t.detail || r.statusText);
+function bytesToB64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
-  return r.json();
+  return btoa(binary);
 }
 
 export async function loadSample(): Promise<{ regions: Region[] }> {
-  return j(await fetch("/api/sample/topshell"));
+  const response = await fetch("/samples/TOPSHELL.DXF");
+  if (!response.ok) throw new Error("Sample outline is missing");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return geometry("import", { filename: "TOPSHELL.DXF", data_b64: bytesToB64(bytes), unit_scale: 1 });
 }
 
 export async function importFile(file: File, unit_scale = 1): Promise<{ regions: Region[] }> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("unit_scale", String(unit_scale));
-  return j(await fetch("/api/import", { method: "POST", body: fd }));
+  const unsupported = unsupportedImportMessage(file.name);
+  if (unsupported) throw new Error(unsupported);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return geometry("import", { filename: file.name, data_b64: bytesToB64(bytes), unit_scale });
 }
 
 export async function pack(regions: Region[], params: LayoutParams): Promise<{ layouts: Layout[] }> {
-  return j(await fetch("/api/pack", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regions, params }) }));
+  return geometry("pack", { regions, params });
 }
 
 export async function validate(
@@ -28,16 +34,17 @@ export async function validate(
   params: LayoutParams,
   panels: Panel[],
 ): Promise<{ issues: Issue[]; score: LayoutScore }> {
-  return j(await fetch("/api/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regions, params, panels }) }));
+  return geometry("validate", { regions, params, panels });
 }
 
 export async function exportFile(fmt: "svg" | "dxf" | "json", regions: Region[], params: LayoutParams, panels: Panel[]) {
-  const r = await fetch(`/api/export/${fmt}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ regions, params, panels }),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  if (fmt === "json") return new Blob([JSON.stringify(await r.json(), null, 2)], { type: "application/json" });
-  return r.blob();
+  const result = await geometry<
+    | { layout: { score: LayoutScore } }
+    | { text: string; mime: string }
+  >("export", { fmt, regions, params, panels, id: "edit", family: "edit" });
+  if (fmt === "json") {
+    return new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+  }
+  const file = result as { text: string; mime: string };
+  return new Blob([file.text], { type: file.mime });
 }
