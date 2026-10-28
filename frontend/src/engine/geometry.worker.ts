@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { PURE_WHEELS, PYODIDE_VERSION } from "./pyVersion";
-import { callHandle, installDeps, mountSources, type PyEngine } from "./session";
+import { callHandle, installDeps, mountSources, registerRaster, type PyEngine } from "./session";
 
 type Request = { id: number; op: string; payload: unknown };
 type PyodideLoader = {
@@ -50,6 +50,7 @@ function boot(): Promise<PyEngine> {
       const py = await loader.loadPyodide({ indexURL });
       await installDeps(py, await localWheels());
       mountSources(py);
+      registerRaster(py);
       return py;
     })();
   }

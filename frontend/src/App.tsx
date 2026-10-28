@@ -27,6 +27,10 @@ function num(v: string, fallback: number) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function formatTook(ms: number) {
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
 function cellPoly(p: Panel, i: number, j: number, params: LayoutParams) {
   const px = params.cell_w_mm + params.cell_gap_mm;
   const py = params.cell_h_mm + params.cell_gap_mm;
@@ -47,6 +51,7 @@ export function App() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tookMs, setTookMs] = useState<number | null>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
   const [draft, setDraft] = useState<[number, number][]>([]);
@@ -181,6 +186,7 @@ export function App() {
 
   async function onUpload(f: File) {
     setErr("");
+    setTookMs(null);
     try {
       const r = await importFile(f, params.unit_scale);
       setS((prev) => loadRegions(prev, r.regions));
@@ -194,10 +200,12 @@ export function App() {
     setErr("");
     try {
       if (s.dirty && !confirm("Replace the edited layout?")) return;
+      const started = performance.now();
       const r = await pack(s.regions, s.params);
       const next = setLayouts(s, r.layouts);
       setS(next);
       await refreshIssues(next);
+      setTookMs(performance.now() - started);
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -384,6 +392,7 @@ export function App() {
           <span>Usable {score?.active_area_m2.toFixed(4) ?? "0"} m²</span>
           <span>Target {params.target_area_m2.toFixed(3)} m²</span>
           <span className={score?.meets_target ? "ok" : "off"}>Δ {score?.delta_m2.toFixed(4) ?? "0"} m²</span>
+          {tookMs != null && <span>Took {formatTook(tookMs)}</span>}
           {s.pendingGalleryId && (
             <button
               onClick={() => {

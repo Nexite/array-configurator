@@ -243,12 +243,127 @@ def _candidate_phases(remaining, angle: float, params: LayoutParams, panels: lis
     return list(phases)
 
 
+def _raster_js():
+    try:
+        import raster_js
+    except ImportError:
+        return None
+    return raster_js
+
+
+def _polygon_rings(geom) -> list[dict]:
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "GeometryCollection":
+        parts = [g for g in geom.geoms if g.geom_type in ("Polygon", "MultiPolygon") and not g.is_empty]
+        from shapely.ops import unary_union
+
+        geom = unary_union(parts) if parts else Polygon()
+    if geom.geom_type == "Polygon":
+        geoms = [geom]
+    elif geom.geom_type == "MultiPolygon":
+        geoms = [g for g in geom.geoms if g.geom_type == "Polygon" and not g.is_empty]
+    else:
+        return []
+    rings = []
+    for poly in geoms:
+        rings.append(
+            {
+                "exterior": [[float(x), float(y)] for x, y in poly.exterior.coords],
+                "holes": [[[float(x), float(y)] for x, y in hole.coords] for hole in poly.interiors],
+            }
+        )
+    return rings
+
+
+def _grid(geom, angle: float, phase_u: float, phase_v: float, px: float, py: float):
+    minx, miny, maxx, maxy = geom.bounds
+    corners = [_to_local(x, y, angle) for x, y in ((minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy))]
+    u0 = min(p[0] for p in corners) + phase_u * px
+    v0 = min(p[1] for p in corners) + phase_v * py
+    u1 = max(p[0] for p in corners)
+    v1 = max(p[1] for p in corners)
+    ni = int((u1 - u0) / px) + 2
+    nj = int((v1 - v0) / py) + 2
+    if ni <= 0 or nj <= 0:
+        return u0, v0, 0, 0
+    return u0, v0, ni, nj
+
+
+def _phase_masks(geom, grown, params: LayoutParams, angle: float, phases: list[tuple[float, float]]):
+    """Cell masks for each phase. The browser supplies the grid test when it can."""
+    px = params.cell_w_mm + params.cell_gap_mm
+    py = params.cell_h_mm + params.cell_gap_mm
+    backend = _raster_js()
+    if backend is None or grown is None or grown.is_empty:
+        return [_raster(geom, params, angle, pu, pv, grown) for pu, pv in phases]
+    origins = []
+    spec = []
+    for pu, pv in phases:
+        u0, v0, ni, nj = _grid(geom, angle, pu, pv, px, py)
+        origins.append((u0, v0))
+        spec.append({"u0": u0, "v0": v0, "ni": ni, "nj": nj})
+    prep = backend.prepareRaster(_polygon_rings(grown))
+    try:
+        raw = backend.rasterPhases(prep, float(angle), spec, px, py, params.cell_w_mm, params.cell_h_mm)
+        payload = raw.to_py()
+    finally:
+        backend.releaseRaster(prep)
+    masks = []
+    cursor = 0
+    data = payload["data"]
+    for origin, count in zip(origins, payload["counts"]):
+        cells = set()
+        for _ in range(int(count)):
+            cells.add((int(data[cursor]), int(data[cursor + 1])))
+            cursor += 2
+        masks.append((cells, origin))
+    return masks
+
+
+def _best_from_js(backend, geom, grown, params: LayoutParams, angle: float, phases, cap_w: int, cap_h: int):
+    px = params.cell_w_mm + params.cell_gap_mm
+    py = params.cell_h_mm + params.cell_gap_mm
+    spec = []
+    for pu, pv in phases:
+        u0, v0, ni, nj = _grid(geom, angle, pu, pv, px, py)
+        spec.append({"u0": u0, "v0": v0, "ni": ni, "nj": nj})
+    prep = backend.prepareRaster(_polygon_rings(grown))
+    try:
+        raw = backend.bestOnAngle(
+            prep,
+            float(angle),
+            spec,
+            px,
+            py,
+            params.cell_w_mm,
+            params.cell_h_mm,
+            params.cell_gap_mm,
+            int(cap_w),
+            int(cap_h),
+        )
+        if raw is None or raw == None or not hasattr(raw, "to_py"):
+            return None
+        payload = raw.to_py()
+    finally:
+        backend.releaseRaster(prep)
+    data = payload["cells"]
+    cells = {(int(data[k]), int(data[k + 1])) for k in range(0, len(data), 2)}
+    if not cells:
+        return None
+    key = (int(payload["count"]), int(payload["maskCount"]), float(payload["fill"]))
+    return (key, (float(payload["u0"]), float(payload["v0"])), cells)
+
+
 def _best_on_angle(remaining, params: LayoutParams, angle: float, long_axis: float, panels: list[Panel], fine: bool):
     cap_w, cap_h = axis_cell_caps(params, angle, long_axis)
     best = None
     grown = remaining.buffer(1e-4)
-    for pu, pv in _candidate_phases(remaining, angle, params, panels, fine):
-        mask, origin_local = _raster(remaining, params, angle, pu, pv, grown)
+    phases = _candidate_phases(remaining, angle, params, panels, fine)
+    backend = _raster_js()
+    if backend is not None and grown is not None and not grown.is_empty:
+        return _best_from_js(backend, remaining, grown, params, angle, phases, cap_w, cap_h)
+    for mask, origin_local in _phase_masks(remaining, grown, params, angle, phases):
         rect = _largest_rect(mask, params, cap_w, cap_h)
         if rect is None:
             continue

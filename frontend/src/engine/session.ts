@@ -1,3 +1,4 @@
+import { bestOnAngle, prepareRaster, rasterPhases, releaseRaster } from "./raster.mjs";
 import { PY_SOURCES } from "./sources";
 
 export type PyEngine = {
@@ -7,6 +8,7 @@ export type PyEngine = {
   };
   globals: { set: (name: string, value: unknown) => void };
   loadPackage: (names: string | string[]) => Promise<unknown>;
+  registerJsModule: (name: string, module: object) => void;
   runPython: (code: string) => unknown;
   runPythonAsync: (code: string) => Promise<unknown>;
 };
@@ -18,6 +20,10 @@ export async function installDeps(py: PyEngine, wheels?: string[]): Promise<void
 import micropip
 await micropip.install(${JSON.stringify(specs)})
 `);
+}
+
+export function registerRaster(py: PyEngine): void {
+  py.registerJsModule("raster_js", { bestOnAngle, prepareRaster, rasterPhases, releaseRaster });
 }
 
 export function mountSources(py: PyEngine): void {
