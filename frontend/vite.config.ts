@@ -7,7 +7,6 @@ import { defineConfig, type Plugin } from "vite";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(root, "..");
 const pyodideDir = path.join(root, "node_modules", "pyodide");
-const sample = path.join(repo, "samples", "TOPSHELL.DXF");
 
 const MIME: Record<string, string> = {
   ".wasm": "application/wasm",
@@ -16,7 +15,6 @@ const MIME: Record<string, string> = {
   ".json": "application/json",
   ".whl": "application/octet-stream",
   ".zip": "application/zip",
-  ".dxf": "application/dxf",
 };
 
 function contentType(file: string): string {
@@ -48,10 +46,6 @@ function pyodideAssets(): Plugin {
         res.setHeader("Content-Type", contentType(file));
         createReadStream(file).pipe(res);
       });
-      server.middlewares.use("/samples/TOPSHELL.DXF", (_req, res) => {
-        res.setHeader("Content-Type", "application/dxf");
-        createReadStream(sample).pipe(res);
-      });
     },
     writeBundle(options) {
       const out = path.resolve(options.dir || path.join(root, "dist"));
@@ -72,9 +66,6 @@ function pyodideAssets(): Plugin {
         }
       }
       writeFileSync(path.join(dest, "vendor.json"), JSON.stringify(vendorManifest()));
-      const sampleDest = path.join(out, "samples");
-      mkdirSync(sampleDest, { recursive: true });
-      copyFileSync(sample, path.join(sampleDest, "TOPSHELL.DXF"));
     },
   };
 }

@@ -11,13 +11,6 @@ function bytesToB64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export async function loadSample(): Promise<{ regions: Region[] }> {
-  const response = await fetch("/samples/TOPSHELL.DXF");
-  if (!response.ok) throw new Error("Sample outline is missing");
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  return geometry("import", { filename: "TOPSHELL.DXF", data_b64: bytesToB64(bytes), unit_scale: 1 });
-}
-
 export async function importFile(file: File, unit_scale = 1): Promise<{ regions: Region[] }> {
   const unsupported = unsupportedImportMessage(file.name);
   if (unsupported) throw new Error(unsupported);

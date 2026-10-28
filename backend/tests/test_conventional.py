@@ -1,21 +1,11 @@
-import math
-from pathlib import Path
-
 from shapely.affinity import rotate
 from shapely.geometry import box
 
 from app.geometry.align import dominant_axis_deg, long_axis_deg
 from app.geometry.conventional import axis_cell_caps, merge_panels, pack_conventional
-from app.geometry.import_vector import import_vector
 from app.geometry.pack import circular_angle_delta, pack_layouts
-from app.geometry.panel import is_rectangular, split_disconnected
-from app.geometry.regions import classify_detected, packable_polygon
+from app.geometry.panel import is_rectangular
 from app.models import LayoutParams, Panel
-
-ROOT = Path(__file__).resolve().parents[2]
-# Maxeon Gen 7 datasheet: cell area approximately 155 cm². No length × width is given.
-MAXEON_MM = math.sqrt(155.0 * 100.0)
-
 
 def _params(**kwargs):
     base = dict(
@@ -92,38 +82,6 @@ def test_overpack_fills_past_a_tiny_target():
     assert best.score.cell_count == 10
     assert best.score.active_area_m2 > 0.01
     assert all(is_rectangular(p) for p in best.panels)
-
-
-def test_topshell_half_cells_and_maxeon_cover_target_with_few_panels():
-    rings = import_vector((ROOT / "samples" / "TOPSHELL.DXF").read_bytes(), "TOPSHELL.DXF")
-    shell = packable_polygon(classify_detected(rings))
-    axis = dominant_axis_deg(shell)
-    specs = {
-        "half-cells": _params(),
-        "maxeon": _params(cell_w_mm=MAXEON_MM, cell_h_mm=MAXEON_MM, active_w_mm=MAXEON_MM, active_h_mm=MAXEON_MM),
-    }
-    for name, params in specs.items():
-        layouts = pack_conventional(shell, params)
-        best = min(layouts, key=lambda lay: (max(0.0, -lay.score.delta_m2), lay.score.panel_count, -lay.score.active_area_m2))
-        # 6 cells along the long side leaves the tapered ends short of a full
-        # 6 m². 340 half-cells is 5.940 m²; Maxeon lands in the same band.
-        assert best.score.active_area_m2 >= 5.9, name
-        assert best.score.panel_count <= 12, name
-        assert best.score.panel_count < best.score.cell_count / 15, name
-        shell_long = long_axis_deg(shell)
-        on_axis = 0
-        saw_wide_short_edge = False
-        for panel in best.panels:
-            assert len(split_disconnected(panel)) == 1
-            cap_w, cap_h = axis_cell_caps(params, panel.angle_deg, shell_long)
-            assert panel.cells_wide <= cap_w
-            assert panel.cells_tall <= cap_h
-            along_long, along_short = _spans(panel, params, shell_long)
-            saw_wide_short_edge = saw_wide_short_edge or along_short > along_long
-            if _axis_delta(axis, panel.angle_deg) < 2.0:
-                on_axis += len(panel.occupied)
-        assert saw_wide_short_edge, name
-        assert on_axis >= best.score.cell_count * 0.85, name
 
 
 def test_row_extension_stays_on_the_same_panel():

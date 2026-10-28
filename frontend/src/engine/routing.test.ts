@@ -9,7 +9,7 @@ describe("import formats", () => {
   });
 
   it("accepts DXF, SVG, and HPGL", () => {
-    expect(unsupportedImportMessage("TOPSHELL.DXF")).toBeNull();
+    expect(unsupportedImportMessage("outline.dxf")).toBeNull();
     expect(unsupportedImportMessage("rectangle.svg")).toBeNull();
     expect(unsupportedImportMessage("plot.hpgl")).toBeNull();
     expect(unsupportedImportMessage("plot.plt")).toBeNull();

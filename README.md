@@ -18,7 +18,7 @@ The container only serves the built files. You can also open `frontend/dist` wit
 - **Usable / active W×H** — PV area that counts toward the target (can be smaller than the footprint)
 - Cell gap, panel gap, max cells wide × tall, target area
 
-Load the included `TOPSHELL.DXF` sample, click regions to choose what to populate, then Generate.
+Upload an outline, click regions to choose what to populate, then Generate.
 
 ## Local dev
 

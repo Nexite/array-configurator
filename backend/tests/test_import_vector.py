@@ -71,12 +71,6 @@ def test_shared_edge_line_network_yields_both_faces():
     assert abs(areas[1] - 5000) < 1e-3
 
 
-def test_topshell_spline_outline():
-    rings = import_vector((ROOT / "samples" / "TOPSHELL.DXF").read_bytes(), "TOPSHELL.DXF")
-    assert rings
-    assert max(Polygon(r).area for r in rings) > 1e6
-
-
 def test_png_rejected():
     with pytest.raises(UnsupportedFormatError, match="Raster files are not supported"):
         import_vector(b"x", "x.png")

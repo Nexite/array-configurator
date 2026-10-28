@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { exportFile, importFile, loadSample, pack, validate } from "./api";
+import { exportFile, importFile, pack, validate } from "./api";
 import { preloadGeometry } from "./engine/client";
 import {
   addDrawnRegion,
@@ -179,12 +179,6 @@ export function App() {
     }));
   }
 
-  async function onSample() {
-    setErr("");
-    const r = await loadSample();
-    setS((prev) => loadRegions(prev, r.regions));
-  }
-
   async function onUpload(f: File) {
     setErr("");
     try {
@@ -227,7 +221,6 @@ export function App() {
     <div className="app">
       <aside>
         <h1>Array Configurator</h1>
-        <button onClick={onSample}>Load TOPSHELL sample</button>
         <label>
           Upload
           <input type="file" accept=".dxf,.svg,.plt,.hpgl" onChange={(e) => e.target.files && onUpload(e.target.files[0])} />
